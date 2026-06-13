@@ -2,6 +2,14 @@ This file lists those people that have contributed to lincity.
 If you think you should be here please contact me - my apologies to you,
 I sometimes forget.
 
+ANerdyNub <itvanuatu05@gmail.com>
+Multiplayer fork: added network play, stats sync, cross-platform builds,
+source migration, and various bugfixes.
+
+opencode (AI assistant)
+Assisted with build system fixes, debugging, and code review
+throughout the multiplayer fork development.
+
 Mike - mike@emgee.demon.co.uk
 For testing, icons and ideas.
 
@@ -90,7 +98,7 @@ Add support for moving click-drag-release multi-transport.
 Corey has done other nifty stuff too, but he no longer gets a special
 mention for it since he joined as maintainer.
 
-Dàvik <al016950@alumail.uji.es>
+Dï¿½vik <al016950@alumail.uji.es>
 Add gettext support, and marked up all the embedded strings.
 Contributed the translation into Catalan.
 

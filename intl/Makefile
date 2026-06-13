@@ -17,7 +17,7 @@
 # USA.
 
 PACKAGE = lincity
-VERSION = 1.13.1
+VERSION = 1.14.0
 
 SHELL = /bin/sh
 
@@ -39,7 +39,7 @@ subdir = intl
 
 INSTALL = /usr/bin/install -c
 INSTALL_DATA = ${INSTALL} -m 644
-MKINSTALLDIRS = ./mkinstalldirs
+MKINSTALLDIRS = .//mkinstalldirs
 mkinstalldirs = $(SHELL) `case "$(MKINSTALLDIRS)" in /*) echo "$(MKINSTALLDIRS)" ;; *) echo "$(top_builddir)/$(MKINSTALLDIRS)" ;; esac`
 
 l = 
@@ -128,7 +128,7 @@ libintl.h: libgnuintl.h
 	cp $(srcdir)/libgnuintl.h libintl.h
 
 charset.alias: config.charset
-	$(SHELL) $(srcdir)/config.charset 'x86_64-unknown-linux-gnu' > t-$@
+	$(SHELL) $(srcdir)/config.charset 'x86_64-pc-linux-gnu' > t-$@
 	mv t-$@ $@
 
 check: all

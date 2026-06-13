@@ -92,4 +92,4 @@ REQUESTED FEATURES
 
   o Auto-upgrading
 
-  o Move code into src subdirectory
+  o Move code into src subdirectory (done in 1.14.0 multiplayer fork)

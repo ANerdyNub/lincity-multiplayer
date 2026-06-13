@@ -1,38 +1,38 @@
 ## Process this file with automake to produce Makefile.in
 
-AUTOMAKE_OPTIONS = foreign
+AUTOMAKE_OPTIONS = foreign subdir-objects
 
 ### DEFS = @DEFS@ -DLIBDIR=\"${pkgdatadir}\"
 DEFS = @DEFS@
 X_DEFS = -DLC_X11=1 -Wall
 SVGA_DEFS = -DSVGALIB=1
 
-SUBDIRS = m4 intl po modules
+SUBDIRS = m4 intl po src/modules
 
 ## (deleted)
 ##	acconfig.h   \
 ##	config.h \
 
 noinst_HEADERS = \
-	cliglobs.h   \
-	common.h     confw32.h    \
-	engglobs.h   engine.h	 fileutil.h \
-	generic.h    geometry.h  dialbox.h \
-	lcconfig.h   \
-	lchelp.h       \
-	lcintl.h     lcstring.h	lclib.h\
-	lctypes.h    lcwin32.h \
-	lcx11.h      lcsvga.h \
-	ldsvgui.h    ldsvguts.h   \
-	lin-city.h   lintypes.h	 market.h \
-	module_buttons.h \
-	mouse.h      mps.h	  pbar.h    \
-	picedit.h    pixmap.h     power.h \
-	readpng.h \
-	resource.h	 screen.h \
-	shrglobs.h   stats.h \
-	simulate.h   timer.h	 transport.h \
-	typeinit.h   xpicedit.h	modules.h
+	src/cliglobs.h   \
+	src/common.h     src/confw32.h    \
+	src/engglobs.h   src/engine.h	 src/fileutil.h \
+	src/generic.h    src/geometry.h  src/dialbox.h \
+	src/lcconfig.h   \
+	src/lchelp.h       \
+	src/lcintl.h     src/lcstring.h	src/lclib.h\
+	src/lctypes.h    src/lcwin32.h \
+	src/lcx11.h      src/lcsvga.h \
+	src/ldsvgui.h    src/ldsvguts.h   \
+	src/lin-city.h   src/lintypes.h	 src/market.h \
+	src/module_buttons.h \
+	src/mouse.h      src/mps.h	  src/pbar.h    \
+	src/picedit.h    src/pixmap.h     src/power.h \
+	src/readpng.h \
+	src/resource.h	 src/screen.h \
+	src/shrglobs.h   src/stats.h \
+	src/simulate.h   src/timer.h	 src/transport.h \
+	src/typeinit.h   src/xpicedit.h	src/modules.h
 
 # Directories that need to have CVS and ca subdirectories removed
 LC_DISTDIRS = \
@@ -43,7 +43,6 @@ LC_DISTDIRS = \
 
 EXTRA_DIST = $(LC_DISTDIRS) \
 	colour.pal \
-	lcwin32.c winmain.c \
 	lincity.ico  small.ico lincity.rc \
 	CHANGES COPYRIGHT Acknowledgements \
 	config.sh \
@@ -151,6 +150,9 @@ LCSERVER_PROGS: lcserver$(EXEEXT)
 LCX_LIBS: liblcx.la
 LCSVGA_LIBS: liblcsvga.la
 
+## All sources are under src/, add to include path
+AM_CPPFLAGS = -I$(top_srcdir)/src
+
 ## These executables are always built
 bin_PROGRAMS = @PROGS@
 lib_LTLIBRARIES = @LCLIBS@
@@ -161,51 +163,51 @@ lib_LTLIBRARIES = @LCLIBS@
 ## XXX: fileutil.c uses HandleError, a platform specific function, yet
 ## its compiled without appropriate -Ds.  Fixme post 1.13.1
 
-gui_SOURCES =	ldsvgui.c splash.c lchelp.c main.c mouse.c mps.c screen.c \
-	pixmap.c cliglobs.c geometry.c pbar.c module_buttons.c \
-	dialbox.c network.c
+gui_SOURCES =	src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
+	src/mps.c src/screen.c src/pixmap.c src/cliglobs.c src/geometry.c \
+	src/pbar.c src/module_buttons.c src/dialbox.c src/network.c
 
-engine_SOURCES = lclib.c power.c ldsvguts.c engine.c transport.c market.c \
-	simulate.c shrtypes.c lintypes.c readpng.c timer.c fileutil.c \
-	shrglobs.c stats.c
+engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
+	src/transport.c src/market.c src/simulate.c src/shrtypes.c \
+	src/lintypes.c src/readpng.c src/timer.c src/fileutil.c \
+	src/shrglobs.c src/stats.c
 
 liblcx_la_SHORTNAME = lcx
-liblcx_la_SOURCES = $(gui_SOURCES) lcx11.c 
+liblcx_la_SOURCES = $(gui_SOURCES) src/lcx11.c 
 liblcx_la_LIBADD = @X_LIBS@ -lXext -lX11 -lpng -lz -lm
-liblcx_la_CPPFLAGS = $(X_DEFS)
+liblcx_la_CPPFLAGS = -I$(top_srcdir)/src $(X_DEFS)
 
 liblcsvga_la_SHORTNAME = lcsvga
-liblcsvga_la_SOURCES = $(gui_SOURCES) lcsvga.c
+liblcsvga_la_SOURCES = $(gui_SOURCES) src/lcsvga.c
 liblcsvga_la_LIBADD = @SVGA_LIBS@ -lvgagl -lvga -lpng -lz -lm
-liblcsvga_la_CPPFLAGS = $(SVGA_DEFS)
+liblcsvga_la_CPPFLAGS = -I$(top_srcdir)/src $(SVGA_DEFS)
 
 
 lincity_SOURCES = $(engine_SOURCES)
-lincity_DEPENDENCIES = LCSVGA_LIBS modules/libmodules.la
-lincity_LDADD = liblcsvga.la modules/libmodules.la
+lincity_DEPENDENCIES = LCSVGA_LIBS src/modules/libmodules.la
+lincity_LDADD = liblcsvga.la src/modules/libmodules.la
 
 xlincity_SOURCES = $(engine_SOURCES)
-xlincity_DEPENDENCIES = LCX_LIBS modules/libmodules.la 
-xlincity_LDADD = liblcx.la modules/libmodules.la
+xlincity_DEPENDENCIES = LCX_LIBS src/modules/libmodules.la 
+xlincity_LDADD = liblcx.la src/modules/libmodules.la
 
 ## ----- xpicedit -----
 xpicedit_SOURCES = 
-EXTRA_xpicedit_SOURCES = picedit.c
+EXTRA_xpicedit_SOURCES = src/picedit.c
 xpicedit_LDADD = x_picedit.o -lXext -lX11 -lm
 
 ## ----- picedit -----
 picedit_SOURCES = 
-EXTRA_picedit_SOURCES = picedit.c
+EXTRA_picedit_SOURCES = src/picedit.c
 picedit_LDADD = vga_picedit.o -lvgagl -lvga -lm
 
 
 ## ----------------- PICEDIT RULES ------------------
-x_picedit.o: picedit.c
-	$(COMPILE) $(X_DEFS) -o x_picedit.o -c picedit.c
+x_picedit.o: src/picedit.c
+	$(COMPILE) $(X_DEFS) -o x_picedit.o -c src/picedit.c
 
-vga_picedit.o: picedit.c
-	$(COMPILE) $(X_DEFS) -o vga_picedit.o -c picedit.c
+vga_picedit.o: src/picedit.c
+	$(COMPILE) $(X_DEFS) -o vga_picedit.o -c src/picedit.c
 
 
 ACLOCAL_AMFLAGS = -I m4
-

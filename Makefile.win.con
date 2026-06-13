@@ -1,36 +1,42 @@
-# Makefile for cross-compiling lincity 1.14.0 for Windows (x86-64)
-# Usage: make -f Makefile.win
+# Makefile for cross-compiling lincity 1.14.0 for Windows (x86-64) - Console version
+# Usage: make -f Makefile.win.con
 
 CC = x86_64-w64-mingw32-gcc
 WINDRES = x86_64-w64-mingw32-windres
 CFLAGS = -O2 -Wall -DWIN32 -DWIN32_LEAN_AND_MEAN \
-	 -I. -Imodules
+	 -Isrc -Isrc/modules
 LDFLAGS = 
 LIBS = -lgdi32 -luser32 -lcomctl32 -lcomdlg32 -lwinmm -lws2_32 -lpng -lz -lm
 
-ENGINE_OBJS = lclib.o power.o ldsvguts.o engine.o transport.o market.o \
-	      simulate.o shrtypes.o lintypes.o readpng.o timer.o fileutil.o \
-	      shrglobs.o stats.o
+ENGINE_OBJS = src/lclib.o src/power.o src/ldsvguts.o src/engine.o \
+	      src/transport.o src/market.o src/simulate.o src/shrtypes.o \
+	      src/lintypes.o src/readpng.o src/timer.o src/fileutil.o \
+	      src/shrglobs.o src/stats.o
 
-GUI_OBJS = ldsvgui.o splash.o lchelp.o main.o mouse.o mps.o screen.o \
-	   pixmap.o cliglobs.o geometry.o pbar.o module_buttons.o dialbox.o
+GUI_OBJS = src/ldsvgui.o src/splash.o src/lchelp.o src/main.o src/mouse.o \
+	   src/mps.o src/screen.o src/pixmap.o src/cliglobs.o \
+	   src/geometry.o src/pbar.o src/module_buttons.o src/dialbox.o
 
-NET_OBJS = network.o
+NET_OBJS = src/network.o
 
-WIN32_OBJS = lcwin32.o winmain.o
+WIN32_OBJS = src/lcwin32.o src/winmain.o
 
-MODULE_OBJS = modules/rail.o modules/road.o modules/track.o \
-	      modules/power_line.o modules/coal_power.o modules/solar_power.o \
-	      modules/tip.o modules/rocket_pad.o modules/shanty.o \
-	      modules/fire.o modules/pottery.o modules/university.o \
-	      modules/port.o modules/commune.o modules/oremine.o \
-	      modules/light_industry.o modules/residence.o \
-	      modules/organic_farm.o modules/substation.o \
-	      modules/monument.o modules/school.o modules/health_centre.o \
-	      modules/cricket.o modules/firestation.o modules/water.o \
-	      modules/mill.o modules/blacksmith.o modules/windmill.o \
-	      modules/recycle.o modules/coalmine.o modules/heavy_industry.o \
-	      modules/parkland.o
+MODULE_OBJS = src/modules/rail.o src/modules/road.o src/modules/track.o \
+	      src/modules/power_line.o src/modules/coal_power.o \
+	      src/modules/solar_power.o src/modules/tip.o \
+	      src/modules/rocket_pad.o src/modules/shanty.o \
+	      src/modules/fire.o src/modules/pottery.o \
+	      src/modules/university.o src/modules/port.o \
+	      src/modules/commune.o src/modules/oremine.o \
+	      src/modules/light_industry.o src/modules/residence.o \
+	      src/modules/organic_farm.o src/modules/substation.o \
+	      src/modules/monument.o src/modules/school.o \
+	      src/modules/health_centre.o src/modules/cricket.o \
+	      src/modules/firestation.o src/modules/water.o \
+	      src/modules/mill.o src/modules/blacksmith.o \
+	      src/modules/windmill.o src/modules/recycle.o \
+	      src/modules/coalmine.o src/modules/heavy_industry.o \
+	      src/modules/parkland.o
 
 ALLOBJS = $(ENGINE_OBJS) $(GUI_OBJS) $(NET_OBJS) $(WIN32_OBJS) $(MODULE_OBJS)
 
@@ -39,25 +45,25 @@ all: lincity.exe
 lincity.exe: $(ALLOBJS) lincity.res
 	$(CC) $(LDFLAGS) -o $@ $(ALLOBJS) lincity.res $(LIBS)
 
-lincity.res: lincity.rc lincity.ico small.ico resource.h generic.h
-	$(WINDRES) lincity.rc -O coff -o $@
+lincity.res: lincity.rc lincity.ico small.ico src/resource.h src/generic.h
+	$(WINDRES) --include-dir src lincity.rc -O coff -o $@
 
-$(ENGINE_OBJS): %.o: %.c
+$(ENGINE_OBJS): src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(GUI_OBJS): %.o: %.c
+$(GUI_OBJS): src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(WIN32_OBJS): %.o: %.c
+$(WIN32_OBJS): src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(NET_OBJS): %.o: %.c
+$(NET_OBJS): src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(MODULE_OBJS): modules/%.o: modules/%.c
+$(MODULE_OBJS): src/modules/%.o: src/modules/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o modules/*.o lincity.res lincity.exe
+	rm -f src/*.o src/modules/*.o lincity.res lincity.exe
 
 .PHONY: all clean
