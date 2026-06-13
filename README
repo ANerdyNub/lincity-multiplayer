@@ -42,11 +42,7 @@ Original: http://lincity.sourceforge.net
 REQUIREMENTS
 ============
 
-   *  SVGALIB 1.3.0 (or greater) OR X11 OR a Win32 OS.
-   *  The libpng and libz libraries.
-   *  A graphics card supported by your above choice.
-   *  You probably need at least a 486DX2-66.
-   *  You probably need at least 8 MB memory (16 MB for X or win32).
+As long as it isn't a toaster your PC should be able to run this.
 
 
 INSTALLATION (UNIX)
@@ -139,15 +135,17 @@ Double click the LINCITY.EXE icon.
 RUNNING LINCITY (CLIENT/SERVER)
 ===============================
 
-LinCity Multiplayer supports network play over TCP/IP.  Start a server:
+LinCity Multiplayer supports network play over TCP/IP.  There are no
+command-line options — everything is done through the in-game menu:
 
-      xlincity --serve
+  1. Launch the game (lincity or xlincity)
+  2. On the opening screen, click "Connect - network game"
+  3. Choose:
+       1 - Host a game (starts a server on port 5123)
+       2 - Join a game (enter host address and port)
 
-Connect a client:
-
-      xlincity --connect <server-address>
-
-See --help for full options.
+To host, set max players (1-4) and wait for connections in the lobby.
+Press S to start or wait for all players to join.  Port 5123 by default.
 
 
 THE LINCITY HOME DIRECTORY
