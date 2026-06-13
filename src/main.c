@@ -688,16 +688,29 @@ execute_timestep (void)
 	}
 
 	if (nfds > 0) {
-	    network_host_broadcast_money_all ();
-	    network_host_broadcast_pop_all ();
-	    network_host_broadcast_year_all ();
-	    network_host_broadcast_speed_all ();
-	    network_host_broadcast_tech_all ();
-	    network_host_broadcast_stats_all ();
-	    network_host_broadcast_yearly_stats_all ();
+	    static long last_bc = 0;
+	    static long last_info = 0;
 
-	    if (total_time % NUMOF_DAYS_IN_MONTH == 0 && total_time > 0)
+	    /* Throttle broadcasts to ~20 Hz so fast speed doesn't blast
+	       the network with tiny messages at thousands of FPS. */
+	    if (real_time - last_bc >= 50) {
+		last_bc = real_time;
+		network_host_broadcast_money_all ();
+		network_host_broadcast_pop_all ();
+		network_host_broadcast_year_all ();
+		network_host_broadcast_speed_all ();
+		network_host_broadcast_tech_all ();
+		network_host_broadcast_stats_all ();
+		network_host_broadcast_yearly_stats_all ();
+	    }
+
+	    /* Full map info is ~400 KB; send at most once per real second. */
+	    if (total_time % NUMOF_DAYS_IN_MONTH == 0 && total_time > 0
+		&& real_time - last_info >= 1000)
+	    {
+		last_info = real_time;
 		network_host_send_info_all ();
+	    }
 	}
 
 	/* Host's own drag-pause */
