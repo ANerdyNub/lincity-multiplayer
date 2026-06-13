@@ -1,4 +1,3 @@
-
                       **  Welcome to LinCity Multiplayer  **
 
 This is LinCity 1.14.0 — a multiplayer fork of the classic city simulation
@@ -13,14 +12,14 @@ WHAT IS LINCITY
 
 Lincity is a city/country simulation game for Linux (SVGALIB and X), 
 Solaris, FreeBSD, HPUX, AIX, SCO, IRIX, Compaq Tru64, BeOS, OS/2, VMS,
-OS X, AtheOS, and Win32 (Win95, Win98, ME, NT, 2000, XP).
+OS X, AtheOS, and Win32.
 
 You are required to build and maintain a city. You must feed, house, 
 provide jobs and goods for your residents. You can build a sustainable
 economy with the help of renewable energy and recycling, or you can go for
 broke and build rockets to escape from a pollution ridden and resource
-starved planet, it's up to you. Due to the finite resources available in any
-one place, this is not a game that you can leave for long periods of time.
+starved planet, it's up to you.
+
 
 WHAT'S NEW IN 1.14.0 (Multiplayer Fork)
 ========================================
@@ -43,101 +42,58 @@ Original: http://lincity.sourceforge.net
 REQUIREMENTS
 ============
 
-   *  SVGALIB 1.3.0 (or greater).
-
-      OR	 X11.
-
-      OR	 A Win32 OS.
-
+   *  SVGALIB 1.3.0 (or greater) OR X11 OR a Win32 OS.
    *  The libpng and libz libraries.
-
-      I have tested with libpng versions 1.0.12 and 1.2.5.  These 
-      libraries are included in the windows version.
-
    *  A graphics card supported by your above choice.
-
-   *  You probably need at least a 486DX2-66. (Even better for the X version 
-      I suspect.)
-
+   *  You probably need at least a 486DX2-66.
    *  You probably need at least 8 MB memory (16 MB for X or win32).
-
-   *  Other things?  Send us an email.
 
 
 INSTALLATION (UNIX)
 ===================
 
-To install lincity, (as root) untar the file lincity-1.12.0.gz 
+To build from source:
 
-     tar -xzvf lincity-1.12.0.tar.gz
-
-You now want to compile the source
-
-      cd lincity-1.12.0
+      git clone https://github.com/ANerdyNub/lincity-multiplayer
+      cd lincity-multiplayer
       ./configure
       make
 
-Lincity will run out of the source directory.  But if you want to install
-you can do this:
+Lincity will run out of the source directory.  To install:
 
       make install
 
-The old method choosing the install directory by setting LC_BINDIR and 
-LC_LIBDIR in the makefile no longer applies.  To install to a different 
-directory, you must use the --prefix flag when you configure the package. 
-For example:
+To install to a custom directory:
 
       ./configure --prefix=/usr/mylocal
-
-If you are installing a version downloaded from the cvs server, the 
-timestamps may be incorrect, which will cause the "make" to fail.  In this 
-case, you need to run a script to fix the timestamps:
-
-      ./fix-timestamps.sh
-      ./configure
-      make
-      make install
 
 
 INSTALLATION (WIN32)
 ====================
 
-Simply unpack the archive, and double click on the LINCITY.EXE icon.  
-You can get your free copy of UNZIP from the INFO-ZIP web page at
-
-    http://www.info-zip.org
+Download the latest release from the GitHub page above, unzip, and
+double-click lincity.exe.
 
 
 UNINSTALLING (UNIX)
-====================
+===================
 
-If you still have the configured source directory, you can do this:
+If you still have the configured source directory:
 
       make uninstall
 
-Otherwise, do this (assuming you installed to /usr/local)
+Otherwise (assuming you installed to /usr/local):
 
       rm /usr/local/bin/lincity
       rm /usr/local/bin/xlincity
       rm /usr/local/man/man6/lincity.6
       rm -rf /usr/local/share/lincity
-
-In addition, if you ran lincity, you should delete these:
-
       rm -rf $HOME/.lincity
       rm $HOME/.lincityrc
-
-If you have an older version, before 1.12pre54, you should delete this:
-
-      rm -rf $HOME/.Lin-city
 
 
 UNINSTALLING (WIN32)
 ====================
-
-Like all good DOS programs, lincity runs within a single directory.
-No files are copied to your "windows directory."  The windows registry
-is not used.
 
 Simply delete the lincity directory to uninstall.
 
@@ -155,48 +111,43 @@ run the X Windows version.  The SVGA version will not run under X.
 The following options apply to both.
 
         -w   Do some *crude* gamma correction to boost the red and blue.
-             This makes some 'washed out' displays a bit more colourful.
-             You have control of the individual values, see below.
-
         -R <num>
         -G <num>
         -B <num>
              These options allow you to boost the individual colours.
              <num> is a number between 0.0 and 1.0
-             The default values for -w are  1.0   0.0   0.4  (ATTOW)
+             The default values for -w are  1.0   0.0   0.4
 
-This option only applies to lincity.
+This option only applies to lincity:
 
-	-m <num>
-	    Set the VGA mode.  See below for choices of mode.
+        -m <num>
+            Set the VGA mode (10=640x480, 11=800x600, 12=1024x768,
+            13=1280x1024).
 
-This option only applies to xlincity.
+This option only applies to xlincity:
 
-	-r   Add an extra border around the game.
-        -d   Double the size of the window to 1280x960
-
-	-b   *obsolete* omit border around game.  Now on by default.
+        -r   Add an extra border around the game.
+        -d   Double the size of the window to 1280x960.
 
 
 RUNNING LINCITY (WIN32)
-======================
+=======================
 
-Double click the LINCITY.EXE icon.  The WIN32 version does not accept
-command line arguments.
+Double click the LINCITY.EXE icon.
 
 
-UPGRADING FROM VERSION 1.11
-===========================
+RUNNING LINCITY (CLIENT/SERVER)
+===============================
 
-Lincity 1.12 is forward compatible with lincity 1.11, in the sense 
-that 1.12 can read files generated in 1.11.  However, please note 
-that you may need to copy over the save files.  Save files can 
-be found in the following directories.  UNIX users note the change!
+LinCity Multiplayer supports network play over TCP/IP.  Start a server:
 
-          Lincity 1.11                  Lincity 1.12
-          ----------------              ----------------
-UNIX      $HOME/.Lin-city               $HOME/.lincity
-WINDOWS   %LINCITY_HOME%\SAVED_GAMES    %LINCITY_HOME%\SAVED_GAMES
+      xlincity --serve
+
+Connect a client:
+
+      xlincity --connect <server-address>
+
+See --help for full options.
 
 
 THE LINCITY HOME DIRECTORY
@@ -205,92 +156,57 @@ THE LINCITY HOME DIRECTORY
 If you get a message such as "Error. Can't find LINCITY_HOME", this
 means that lincity can't find its home directory.  To find its 
 home directory, lincity searches for the file "colour.pal" in 
-the following three directories (in order):
+the following directories (in order):
 
-	The directory pointed to by the $LINCITY_HOME environment variable
-	The current working directory
-	The default directory
+        The directory pointed to by the $LINCITY_HOME environment variable
+        The current working directory
+        The default directory
 
 
 LINCITY CONFIGURATION FILE
 ==========================
 
-Lincity now has a configuration file for saving defaults.  You can 
-find it in the following location:
-          
+Lincity has a configuration file for saving defaults:
+
 UNIX:       $HOME/.lincityrc
 WINDOWS:    %LINCITY_HOME%\lincity.ini
 
-To reset to the "factory default" configuration, simply delete the 
-file.  Lincity will regenerate the file if it is missing.
+To reset to defaults, simply delete the file.
 
 
 LINCITY ARTWORK
 ===============
 
-Starting with version 1.13, you can (more easily) customize the lincity 
-buildings and animations.  To modify the artwork simply edit the 
-icon image file, located at opening/icons.png, with your favorite 
-image editor.  
-
-The icons.png file has a 256-color indexed format.  The palette contained
-within icons.png, however, is ignored by lincity.  Instead, lincity 
-uses the file "Colour.pal" to determine the palette.
+Starting with version 1.13, you can customize the lincity buildings
+and animations by editing the icon image file at opening/icons.png
+with your favorite image editor.  The palette is defined in colour.pal.
 
 
 NOTES FOR SVGALIB VERSION
 =========================
 
-It is now possible to run at higher resolution.  You can use the command
-line to set the mode:
+Higher resolutions are supported via the -m flag (see above).
 
-      lincity                 ## default mode
-      lincity -m 10           ## mode 10, 640x480
-      lincity -m 11           ## mode 11, 800x600
-      lincity -m 12           ## mode 12, 1024x768
-      lincity -m 13           ## mode 13, 1280x1024
-
-If not specified, lincity uses the default mode.  The default mode
-can be set according to the SVGALIB_DEFAULT_MODE environment variable.
-See "man svgalib" for details on the svgalib default graphics mode.
-If no default graphics mode has been specified, lincity will use 
-mode 10 (640x480, 256 colors).
-
-As of version 1.12, lincity now uses the mouse settings in your 
-svga configuration file (i.e. /etc/vga/vga.config).  Please use 
-this method to specify which make/model of mouse you are using,
-and other mouse parameters.
+As of version 1.12, lincity uses the mouse settings in your
+SVGA configuration file (e.g. /etc/vga/vga.config).
 
 
 NOTES FOR X VERSION
 ===================
 
-When playing in 256 colour (8bbp) display modes, when you go over the edge
-of your window, the window manager changes the colour palette back to the
-'normal' one, then back to the game's one when the mouse reenters the
-window. This is what is supposed to happen, but can be a bit annoying when
-trying to click on areas close to the edge and overshooting. For this
-reason, I have added an extra border around the game to give players a bit
-of 'breathing space'.
+When playing in 256 colour (8bpp) display modes, moving the mouse
+outside the window may cause palette flashing.  An extra border is
+added by default; you can disable it with -b.
 
-You can disable this feature by starting the game with a '-b' switch. ie.
-
-                 xlincity -b
-
-There is now a button that enables you to confine the mouse pointer within
-the X window. ( xlincity -b, then confining the pointer and changing the
-screen resolution to 640x480 gives you a 'full screen' game. :) )
+There is a button that confines the mouse pointer within the X window.
 
 
 NOTES FOR WIN32 VERSION
 =======================
 
-Lincity for Win32 automatically chooses whether or not to add a border 
-and/or perform pix doubling, depending on your resolution.  Furthermore,
-it will automatically maximize the window or even go into full screen
-mode.  Here is what you should see for some of the more popular 
-resolutions:
-       
+Lincity for Win32 automatically chooses border and pix doubling based
+on your resolution:
+
        Resolution      Window Style     Border         Pix Doubling
        ------------    ------------    ------------    ------------
        640 x 480       Full screen     None            No
@@ -299,292 +215,38 @@ resolutions:
        1152 x 864      Window          Yes             No
        1280 x 1024     Window          None            Yes
 
-If you are running 1280x1024, you may need to autohide the taskbar
-in order to see pix doubling.
-
-Lincity no longer uses a real windows font to draw text.  Although this 
-gives a considerable speed improvement (about 20%), it sometimes 
-doesn't work correctly, for a reason that I haven't yet identified.
-
-Save files are gzip compatible with the UNIX version of lincity.  That is,
-you will need to gzip/gunzip the save files when you transfer them to/from
-your UNIX box.
-
-The source code is distributed together with the binary distribution,
-in the file source.tgz.
+Save files are gzip compatible with the UNIX version of lincity.
 
 
-NOTES FOR CYGWIN
-================
+INTERNATIONALIZATION
+====================
 
-Cygwin is fully supported.  However, at the time of writing, 
-performance is very slow when X Windows is started in multiwindow 
-mode (which is the default setting).  To fix this, you can
-edit startxwin.bat to choose a different setting.
+Lincity supports translations via gettext.  To make a translation:
 
-http://sources.redhat.com/ml/cygwin-xfree/2003-09/msg00485.html
+  1. Add your language code to po/LINGUAS
+  2. Run `msginit -l <code>` in the po/ directory
+  3. Edit the resulting .po file with your translations
+  4. Run `make` in the po/ directory
 
-
-INTERNATIONALIZATION UNDER LINUX
-================================
-
-Lincity supports a modest amount of internationalization.  Only languages
-that can be represented using a iso8859-1 font are currently supported.
-I have created a lincity-compatible iso8859-2 font also, but have not used 
-it yet because of no demand (send me an email if you would like to try).
-
-If you wish to make a translation for your language, you will need to 
-download and install gettext 0.11.2 or higher.
-
-The first task is to get the sample Italian translation to display 
-correctly.  Download a fresh lincity (1.12pre53 or higher) from
-sourceforge.  Do a configure, make, and make install.
-
-Next, download the Italian package.  Install as described in README.it.
-Run as follows:
-
-   export LANG=it_IT          ## (on bash and similar)
-   setenv LANG it_IT          ## (on csh and similar)
-   xlincity -D
-
-Hopefully you will see something like this:
-
-   Setting entire locale to it_IT
-   Setting messages locale to it_IT
-   Query locale is it_IT
-   GUESS 1 -- intl_suffix is it_IT
-   Trying Message Path /home/gsharp/lincity/share/lincity/messages/it_IT/
-   Trying Help Path /home/gsharp/lincity/share/lincity/help/it_IT/
-   GUESS 2 -- intl_suffix is it
-   Trying Message Path /home/gsharp/lincity/share/lincity/messages/it/
-   Set Message Path /home/gsharp/lincity/share/lincity/messages/it/
-   Trying Help Path /home/gsharp/lincity/share/lincity/help/it/
-   Set Help Path /home/gsharp/lincity/share/lincity/help/it/
-   Bound textdomain directory is /home/gsharp/lincity/share/locale
-   Textdomain is lincity
-   DefaultVisual id=35 bp-rgb=8 map-entries=256
-
-
-If you see this, then everything worked perfectly.  You should see perfect
-Italian.  In particular, note the following:
-
-  (1)  The opening screen (help page) is in Italian
-  (2)  The month January will be written "Gen" instead of "Jan"
-  (3)  Click on something that hasn't been invented yet, like a 
-       power station or windmill.  The message for "Not enough tech" 
-       will be in Italian.
-
-It is possible that you see English for (1) and (3).  If so, you 
-are probably running from the directory you built from.  Please cd 
-out of that directory, and try again.
-
-If you are less lucky, maybe only (1) and (3) worked correctly and 
-but not (2).  If so, you probably saw something like this:
-
-   Setting entire locale to (null)
-   Setting messages locale to (null)
-   Query locale is C
-   GUESS 1 -- intl_suffix is it_IT
-   Trying Message Path /usr/local/lincity/messages/it_IT/
-   Trying Help Path /usr/local/lincity/help/it_IT/
-   GUESS 2 -- intl_suffix is it
-   Trying Message Path /usr/local/lincity/messages/it/
-   Set Message Path /usr/local/lincity/messages/it/
-   Trying Help Path /usr/local/lincity/help/it/
-   Settling for help Path /usr/local/lincity/help/
-   Bound textdomain directory is /lincity/share/locale
-   Textdomain is lincity
-   DefaultVisual id=35 bp-rgb=8 map-entries=256
-
-If this happens, it means that your system is missing some files which 
-are require to "set the locale" of your system to "it_IT".  Probably 
-you are running Linux -- I don't think other Unix's have this peculiar 
-requirement.
-
-To check if this is the problem (on Linux), look for the directory 
-/usr/lib/locale/it_IT.  If this directory doesn't exist, you have this
-problem.  To fix it, do the following:
-
-   1)  Make a backup of the directory /usr/share/i18n/charmaps
-   2)  Make a backup of the directory /usr/share/i18n/locale
-   3)  cd /usr/share/i18n/charmaps
-   4)  gunzip UTF-8.gz
-   5)  gunzip ISO-8859-1.gz
-   6)  cd /usr/share/i18n/locale
-   7)  localedef -f ../charmaps/UTF-8 -i it_IT it_IT.UTF-8
-   8)  localedef -f ../charmaps/ISO-8859-1 -i it_IT it_IT
-
-Now check for the directory /usr/lib/locale/it_IT.  It will be there.
-
-OK, now you are ready to make translations for a new language.  
-There are three parts to making a translation:
-   making help files
-   making message files
-   making a .po file.
-
-The messages and help files are just a matter of editing the ASCII 
-files, and installing them.  If your language is "it", you should 
-create two directories such as /usr/local/share/lincity/messages/it
-and /usr/local/share/lincity/help/it.  Copy the English language 
-help and message files to these directories, and translate them.
-
-The .po file is a matter of translating these and getting them to compile 
-correctly.  First, edit the file po/LINGUAS, and add your language 
-(e.g. "it") to the list.  Next, create the .po file.  For the language
-"it", the command looks like this like this:
-
-   cd po
-   msginit -l it
-
-You should now see the file "it.po".  Edit this file.  Specifically,
-you should edit what comes after "msgstr".  Don't erase any of the 
-other stuff such as "msgid" or "#: cliglobs.c:54" or that stuff.
-If you are using emacs, there is a "po-mode" to facilitate 
-(or obstruct) this task.
-
-When you are done editing this file, you need to compile this file.
-Simply type "make" in the po directory to compile.  This will 
-create the file "it.gmo".  Finally, you will need to install this file.
-To install, you will copy this file to the following location:
-
-  cp it.gmo /usr/local/share/locale/it/LC_MESSAGES/lincity.mo
-
-Now, you are ready to go.  Set the LANG environment variable and 
-lincity should run using your translations.
-
-Email to gregsharp@geocities.com for comments about this process.
-
-
-INTERNATIONALIZATION UNDER WINDOWS
-==================================
-
-The situation under windows is similar.  Download lincity 
-binary package, version 1.12pre53 or newer, and also download
-the Italian translation pack.
-
-Install the Italian translation pack directly into the lincity 
-directory.  Then run the batch file:
-
-  c:\lincity> lincity-it
-
-Now, you should see:
-
-  (1)  The opening screen (help page) is in Italian
-  (2)  The month January will be written "Gen" instead of "Jan"
-  (3)  Click on something that hasn't been invented yet, like a 
-       power station or windmill.  The message for "Not enough tech" 
-       will be in Italian.
-
-If the above procedure doesn't work "out of the box", email 
-to gregsharp@geocities.com.
-
-OK, now you are ready to make translations for a new language.  
-There are three parts to making a translation:
-   making help files
-   making message files
-   making a .po file.
-
-The messages and help files are just a matter of editing the ASCII 
-files, and installing them.  If your language is "it", you should 
-create two directories such as /usr/local/share/lincity/messages/it
-and /usr/local/share/lincity/help/it.  Copy the English language 
-help and message files to these directories, and translate them.
-
-The .po file is a matter of translating these and getting them to compile 
-correctly.  First, make copy the file lincity.pot to your language 
-(e.g. "it.po" for Italian).  If you do not have a lincity.pot file, 
-email gregsharp@geocities.com to get the latest one (or get it 
-directly from the CVS server on sourceforge).
-
-You should now see the file "it.po".  Edit this file.  Specifically,
-you should edit what comes after "msgstr".  Don't erase any of the 
-other stuff such as "msgid" or "#: cliglobs.c:54" or that stuff.
-If you are using emacs, there is a "po-mode" to facilitate 
-(or obstruct) this task.
-
-When you are done editing this file, you need to compile this file.
-Use the executable "msgfmt.exe" which is distributed with lincity 
-for this purpose:
-
-  c:\lincity> msgfmt it.po -o it.gmo
-
-This should create the file it.gmo.  You need to copy it to a 
-prespecified location, like this:
-
-  c:\lincity> copy it.gmo locale\it\LC_MESSAGES\lincity.mo
-
-Create the appropriate subdirectories as necessary.
-
-Now, you are ready to go.  Set the LANG environment variable 
-and lincity should run using your translations.
-
-
-INSTALLING PICEDIT
-==================
-
-Picedit is deprecated.  It may or may not compile.  It will be removed 
-after the transition to png graphics is complete.
-
-picedit is a simple drawing program that was used to draw all the icons
-found within the game. You are free to play with this, and even send me
-new icons that you have designed - although I cannot guarantee that any
-icons sent to me will be included in later versions. If you intend to design
-some that you feel should be included, please e-mail me first, this may save
-a lot of wasted effort.  The following commands
-
-    ./configure
-    make picedit   (or make xpicedit)
-    make install
-
-will compile and install picedit (or xpicedit).  Most likely, you will 
-prefer to install picedit and lincity at the same time to avoid copying 
-all of the help and message files multiple times, like this:
-
-    ./configure
-    make lincity
-    make picedit
-    make install
-
-By the way, xpicedit does not work on hi-color or full-color displays.
+Set the LANG environment variable before running lincity to use
+your translation.
 
 
 COMPILATION UNDER WIN32
 =======================
 
-I use both MS VC++ 4.0 and MS VC++ 6.0 on Win95 and Win98.  I no longer
-include the MSVC workspace files or makefiles, since these do not 
-seem to be particularly useful.  If you would like them, I'd be glad 
-to send them to you.
+Cross-compile using MinGW-w64:
 
-You may need to generate your own Makefile.  The file Makefile.am 
-contains the information about which files you need to compile.  
-As of version 1.12, you no longer need to link with your vendor 
-supplied versions VERSION.LIB or WSOCK32.LIB.
-
-Lincity 1.11 was patched to compile with the Borland compiler 
-too.  If this is not still working in 1.12, please send me a patch 
-and I'll be happy to add it to the archive.
-
-
-RUNNING LINCITY (CLIENT/SERVER)
-===============================
-
-Client/server version is disabled for this version.  In fact, the code 
-was completely removed as of version 1.12pre50, so the last version to 
-contain the (non-functioning) network code was 1.12pre49.
-
-If you are interested in working on a client/server version, please send 
-your email to the current maintainer or to the lincity mailing list.
-We are still interested in doing this!
+      make -f Makefile.win          # release (no console)
+      make -f Makefile.win.con      # debug (with console)
 
 
 BUGS
 ====
 
-Many.  See the file TODO.
+Report bugs at: https://github.com/ANerdyNub/lincity-multiplayer/issues
 
-If you wish to report a bug, you can send to directly to the current
-maintainer or to the lincity mailing list.
+Also see the file TODO.
 
 
 HISTORY
@@ -631,6 +293,7 @@ Please read the file COPYING for the GPL.
 
 The original Lincity did not include multiplayer support. Multiplayer
 features were added by ANerdyNub in this fork.
+
 
 THANK YOU
 =========
