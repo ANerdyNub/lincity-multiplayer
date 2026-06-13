@@ -48,6 +48,13 @@ As long as it isn't a toaster your PC should be able to run this.
 INSTALLATION (UNIX)
 ===================
 
+Pre-built binary (recommended): download lincity-1.14.0-linux-x86_64.tar.gz
+from the GitHub releases page, then:
+
+      tar -xzf lincity-1.14.0-linux-x86_64.tar.gz
+      cd lincity-1.14.0-linux
+      ./xlincity
+
 To build from source:
 
       git clone https://github.com/ANerdyNub/lincity-multiplayer
@@ -58,10 +65,6 @@ To build from source:
 Lincity will run out of the source directory.  To install:
 
       make install
-
-To install to a custom directory:
-
-      ./configure --prefix=/usr/mylocal
 
 
 INSTALLATION (WIN32)
