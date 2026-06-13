@@ -610,7 +610,7 @@ In mid-2001, Greg was joined by Corey Keasling, who helped to bring
 the game to sourceforge.net.  In late 2001, Corey became
 co-maintainer.  Version 1.12 was released in December 2003.
 
-In 2025, ANerdyNub forked the game to add multiplayer support,
+In 2026, ANerdyNub forked the game to add multiplayer support,
 creating version 1.14.0. The fork includes networking, bugfixes,
 build system modernization, and cross-platform improvements.
 
@@ -621,7 +621,7 @@ Lincity is copyrighted software.
 Copyright (c) I J Peters 1995-1997.
 Copyright (c) Greg Sharp 1997-2003.
 Copyright (c) Corey Keasling 2000-2003.
-Copyright (c) ANerdyNub 2025-2026 (multiplayer fork).
+Copyright (c) ANerdyNub 2026 (multiplayer fork).
 
 You may freely copy, distribute and modify lincity under the terms of the
 
