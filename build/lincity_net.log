@@ -1,0 +1,8 @@
+do_network_screen: entered
+network: ESC pressed, exiting
+do_network_screen: cleanup, choice=-1
+do_network_screen: returning
+do_network_screen: entered
+client: connecting to localhost:5123
+client: connect returned fd=-1
+client: CONNECTION FAILED!
