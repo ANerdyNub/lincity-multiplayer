@@ -42,6 +42,7 @@ static void nlog(const char *fmt, ...) {
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -257,6 +258,13 @@ network_host_wait_client(int server_fd)
         return -1;
     }
     fprintf(stderr, "network: accepted client fd=%d\n", fd); fflush(stderr);
+
+    /* TCP_NODELAY for client sockets from the host side too */
+    {
+        int opt = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt));
+    }
+
     return fd;
 }
 
@@ -625,11 +633,24 @@ network_client_connect(const char *host, int port)
     }
     fprintf(stderr, "network: connected, fd=%d\n", fd); fflush(stderr);
 
+    /* TCP_NODELAY: disable Nagle so actions arrive without delay */
+    {
+        int opt = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt));
+    }
+
+    /* Non-blocking: prevents send() in network_client_send_action
+       from freezing the mouse handler when the kernel buffer is full. */
 #ifdef WIN32
-    /* Set client socket to non-blocking so sends from mouse handler don't hang */
     {
         u_long mode = 1;
         ioctlsocket((SOCKET)fd, FIONBIO, &mode);
+    }
+#else
+    {
+        int fl = fcntl(fd, F_GETFL, 0);
+        if (fl >= 0)
+            fcntl(fd, F_SETFL, fl | O_NONBLOCK);
     }
 #endif
 
