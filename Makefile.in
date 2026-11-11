@@ -550,7 +550,19 @@ LC_DISTDIRS = \
 	help icons messages \
 	opening tools
 
-EXTRA_DIST = $(LC_DISTDIRS) \
+
+# Test sources and fixtures are included so make check works from the release
+# tarball.  Generated test binaries and logs are not matched by these patterns.
+TEST_DIST = \
+	tests/*.md \
+	tests/*.py \
+	tests/*.sh \
+	tests/*.c \
+	tests/*.h \
+	tests/fuzz_save_corpus/*.gz \
+	tests/fuzz_save_corpus/*.dict
+
+EXTRA_DIST = $(LC_DISTDIRS) $(TEST_DIST) \
 	colour.pal \
 	win32/lincity.ico  win32/small.ico win32/lincity.rc \
 	meta/CHANGES meta/COPYRIGHT meta/Acknowledgements meta/TODO \
