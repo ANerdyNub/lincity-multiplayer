@@ -6,6 +6,9 @@
 #include "lcconfig.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <limits.h>
 #include <signal.h>
 #include "lcstring.h"
 #include "cliglobs.h"
@@ -54,6 +57,7 @@
 #include "screen.h"
 #include "lcintl.h"
 #include "engine.h"
+#include "validation.h"
 #include "module_buttons.h"
 #include "fileutil.h"
 #include "network.h"
@@ -80,6 +84,134 @@ char* current_month (int current_time);
 int current_year (int current_time);
 void process_keystrokes (int key);
 int execute_timestep (void);
+static int run_headless_batch (void);
+
+#ifndef WIN32
+static void
+network_option_error (const char *option, const char *value)
+{
+    fprintf (stderr,
+             "lincity: invalid %s value '%s': expected an integer from 1 to %d\n",
+             option, value, MAX_CLIENTS);
+    exit (2);
+}
+
+static int
+parse_player_count (const char *option, const char *value)
+{
+    char *end;
+    long v;
+
+    errno = 0;
+    v = strtol (value, &end, 10);
+    if (end == value || errno != 0 || *end != '\0'
+        || v < 1 || v > MAX_CLIENTS)
+        network_option_error (option, value);
+    return (int) v;
+}
+
+static int
+parse_network_seed (const char *value)
+{
+    char *end;
+    long v;
+
+    errno = 0;
+    v = strtol (value, &end, 10);
+    if (end == value || errno != 0 || *end != '\0' || v < 0 || v > 2147483647L) {
+        fprintf (stderr,
+                 "lincity: invalid --seed value '%s': expected a non-negative integer\n",
+                 value);
+        exit (2);
+    }
+    return (int) v;
+}
+
+static void
+parse_network_options (int *argc, char **argv, int *headless, int *players,
+                       int *origin, int *seed)
+{
+    int out = 1;
+
+    *headless = 0;
+    *players = 1;
+    *origin = -1;
+    *seed = -1;
+    for (int i = 1; i < *argc; i++) {
+        char *arg = argv[i];
+        const char *value = NULL;
+
+        if (strcmp (arg, "--seed") == 0) {
+            if (i + 1 >= *argc)
+                goto usage;
+            *seed = parse_network_seed (argv[++i]);
+            continue;
+        } else if (strncmp (arg, "--seed=", 7) == 0) {
+            *seed = parse_network_seed (arg + 7);
+            continue;
+        } else if (strcmp (arg, "--host") == 0) {
+            *headless = 1;
+            /* A bare --host keeps the default count, but a following
+               negative number is a value and must be rejected rather
+               than silently treated as "no value". */
+            if (i + 1 < *argc && (argv[i + 1][0] != '-'
+                                  || (argv[i + 1][1] >= '0'
+                                      && argv[i + 1][1] <= '9'))) {
+                value = argv[++i];
+            } else {
+                value = "1";
+            }
+        } else if (strncmp (arg, "--host=", 7) == 0) {
+            *headless = 1;
+            value = arg + 7;
+        } else if (strcmp (arg, "--origin") == 0) {
+            if (i + 1 >= *argc)
+                goto usage;
+            value = argv[++i];
+            {
+                char *end;
+                long v;
+                errno = 0;
+                v = strtol (value, &end, 10);
+                if (errno != 0 || *end != '\0' || v < 0 || v >= WORLD_SIDE_LEN)
+                    goto usage;
+                *origin = (int)v;
+            }
+            continue;
+        } else if (strncmp (arg, "--origin=", 9) == 0) {
+            char *end;
+            long v;
+            value = arg + 9;
+            errno = 0;
+            v = strtol (value, &end, 10);
+            if (errno != 0 || *end != '\0' || v < 0 || v >= WORLD_SIDE_LEN)
+                goto usage;
+            *origin = (int)v;
+            continue;
+        }
+        if (value != NULL) {
+            *players = parse_player_count ("--host", value);
+            continue;
+        }
+        argv[out++] = arg;
+    }
+    *argc = out;
+    argv[out] = NULL;
+    if (!*headless) {
+        const char *env = getenv ("LINCITY_NETWORK_HOST");
+        if (env != NULL && *env != '\0') {
+            *headless = 1;
+            *players = parse_player_count ("LINCITY_NETWORK_HOST", env);
+        }
+    }
+    return;
+
+usage:
+    fprintf (stderr, "usage: %s [--host [1-%d]] [--origin 0-%d] [--seed N]\n",
+             argv[0], MAX_CLIENTS, WORLD_SIDE_LEN - 1);
+    exit (2);
+}
+#endif
 
 /* ---------------------------------------------------------------------- *
  * Private Global Variables
@@ -102,6 +234,19 @@ char LIBDIR[LC_PATH_MAX];
 extern char *lc_save_dir;
 char *lc_temp_file;
 extern char save_names[10][42];
+
+/* Set by parse_network_options() before the main loop starts. */
+static int headless_host;
+static int headless_players = 1;
+static int headless_origin = -1;
+static int headless_seed = -1;
+
+static const char *batch_load_path;
+static const char *batch_bad_load_path;
+static const char *batch_save_path;
+static int batch_ticks;
+static int batch_freeze;
+static int batch_mode;
 
 #ifdef CS_PROFILE
 int prof_countdown = PROFILE_COUNTDOWN;
@@ -153,9 +298,154 @@ lincity_set_locale (void)
     return;
 }
 
+static int test_freeze_sim;
+
+static void
+batch_usage (const char *prog)
+{
+    fprintf (stderr,
+             "usage: %s --load FILE --save FILE [--bad-load FILE] "
+             "[--ticks N] [--freeze-sim]\n",
+             prog);
+    exit (2);
+}
+
+static void
+parse_batch_options (int *argc, char **argv)
+{
+    int out = 1;
+    int saw_ticks = 0;
+
+    for (int i = 1; i < *argc; i++) {
+        const char *arg = argv[i];
+
+        if (strcmp (arg, "--load") == 0) {
+            if (++i >= *argc || argv[i][0] == '\0')
+                batch_usage (argv[0]);
+            batch_load_path = argv[i];
+            continue;
+        }
+        if (strncmp (arg, "--load=", 7) == 0) {
+            if (arg[7] == '\0')
+                batch_usage (argv[0]);
+            batch_load_path = arg + 7;
+            continue;
+        }
+        if (strcmp (arg, "--bad-load") == 0) {
+            if (++i >= *argc || argv[i][0] == '\0')
+                batch_usage (argv[0]);
+            batch_bad_load_path = argv[i];
+            continue;
+        }
+        if (strncmp (arg, "--bad-load=", 11) == 0) {
+            if (arg[11] == '\0')
+                batch_usage (argv[0]);
+            batch_bad_load_path = arg + 11;
+            continue;
+        }
+        if (strcmp (arg, "--save") == 0) {
+            if (++i >= *argc || argv[i][0] == '\0')
+                batch_usage (argv[0]);
+            batch_save_path = argv[i];
+            continue;
+        }
+        if (strncmp (arg, "--save=", 7) == 0) {
+            if (arg[7] == '\0')
+                batch_usage (argv[0]);
+            batch_save_path = arg + 7;
+            continue;
+        }
+        if (strcmp (arg, "--ticks") == 0) {
+            const char *value;
+            char *end;
+            long n;
+
+            if (++i >= *argc)
+                batch_usage (argv[0]);
+            value = argv[i];
+            errno = 0;
+            n = strtol (value, &end, 10);
+            if (end == value || errno != 0 || *end != '\0'
+                || n < 0 || n > INT_MAX)
+                batch_usage (argv[0]);
+            batch_ticks = (int) n;
+            saw_ticks = 1;
+            continue;
+        }
+        if (strncmp (arg, "--ticks=", 8) == 0) {
+            const char *value = arg + 8;
+            char *end;
+            long n;
+
+            errno = 0;
+            n = strtol (value, &end, 10);
+            if (end == value || errno != 0 || *end != '\0'
+                || n < 0 || n > INT_MAX)
+                batch_usage (argv[0]);
+            batch_ticks = (int) n;
+            saw_ticks = 1;
+            continue;
+        }
+        if (strcmp (arg, "--freeze-sim") == 0) {
+            batch_freeze = 1;
+            continue;
+        }
+        argv[out++] = argv[i];
+    }
+    *argc = out;
+    argv[out] = NULL;
+
+    if ((batch_load_path == NULL) != (batch_save_path == NULL))
+        batch_usage (argv[0]);
+    if (saw_ticks && batch_load_path == NULL)
+        batch_usage (argv[0]);
+    batch_mode = batch_load_path != NULL && batch_save_path != NULL;
+}
+
+static int
+run_headless_batch (void)
+{
+    int tick;
+
+    headless_mode = 1;
+    no_init_help = 1;
+    skip_splash_screen = 1;
+
+    initialize_geometry (&scr);
+    initialize_monthgraph ();
+    init_types ();
+    init_mappoint_array ();
+    initialize_tax_rates ();
+    init_pbars ();
+
+    if (!load_city ((char *) batch_load_path))
+        return 1;
+
+    /* A test-only failed reload must leave the city loaded above intact. */
+    if (batch_bad_load_path != NULL) {
+        if (load_city ((char *) batch_bad_load_path)) {
+            fprintf (stderr, "batch: bad load unexpectedly succeeded: %s\n",
+                     batch_bad_load_path);
+            return 1;
+        }
+    }
+
+    for (tick = 0; tick < batch_ticks; tick++) {
+        if (!test_freeze_sim)
+            do_time_step ();
+    }
+
+    save_city_to_path ((char *) batch_save_path);
+    return 0;
+}
+
 int
 lincity_main (int argc, char *argv[])
 {
+    headless_host = 0;
+    headless_players = 1;
+    headless_origin = -1;
+    headless_seed = -1;
 #if defined (LC_X11)
     char *geometry = NULL;
 #endif
@@ -180,10 +470,20 @@ lincity_main (int argc, char *argv[])
     prefs_drawn_flag = 0;
     kmouse_val = 8;
 
+    parse_batch_options (&argc, argv);
+#ifndef WIN32
+    parse_network_options (&argc, argv, &headless_host, &headless_players,
+                           &headless_origin, &headless_seed);
+#endif
+
+    test_freeze_sim = batch_freeze
+        || getenv ("LINCITY_TEST_FREEZE_SIM") != NULL;
+
 #ifdef LC_X11
     borderx = 0;
     bordery = 0;
-    parse_xargs (argc, argv, &geometry);
+    if (!batch_mode)
+        parse_xargs (argc, argv, &geometry);
 #endif
 
     /* I18n */
@@ -200,6 +500,14 @@ lincity_main (int argc, char *argv[])
 
     /* Load preferences */
     load_lincityrc ();
+
+    if (headless_host) {
+        no_init_help = 1;
+        skip_splash_screen = 1;
+    }
+
+    if (batch_mode)
+        return run_headless_batch ();
 
 #ifndef CS_PROFILE
 #ifdef SEED_RAND
@@ -625,6 +933,31 @@ host_reset_drag_pause (void)
 }
 #endif
 
+#if defined (NETWORK_ENABLE)
+static void
+network_reject (const char *what, int x, int y, int value)
+{
+    static time_t last = 0;
+    time_t now = time (NULL);
+
+    if (now != last) {
+	fprintf (stderr, "network: rejected %s (%d,%d,%d)\n",
+		 what, x, y, value);
+	last = now;
+    }
+}
+
+/* Client-side rejects are unthrottled: the client receives a bounded stream
+   from one host, and the test harness needs one visible line per bad action. */
+static void
+network_reject_client (const char *what, int x, int y, int value)
+{
+    fprintf (stderr, "network: rejected %s (%d,%d,%d)\n",
+	     what, x, y, value);
+    fflush (stderr);
+}
+#endif
+
 /* The "guts" of main loop is here. */
 int 
 execute_timestep (void)
@@ -647,6 +980,8 @@ execute_timestep (void)
 	int ax, ay, aval;
 	int ret, fi;
 
+	network_host_flush_all ();
+
 	/* Collect all client fds */
 	int all_fds[MAX_CLIENTS];
 	int nfds = 0;
@@ -659,14 +994,61 @@ execute_timestep (void)
 	for (fi = 0; fi < nfds; fi++) {
 	    while ((ret = network_host_recv_action (all_fds[fi], &action, &ax, &ay, &aval)) > 0) {
 		if (action == MSG_BUILD) {
-		    if (place_item (ax, ay, (short)aval) == 0)
-			network_host_broadcast_action_all (MSG_BUILD, ax, ay, aval);
+		    short type = (short)aval;
+		    int group;
+
+		    if (!type_ok (aval)) {
+			network_reject ("MSG_BUILD type", ax, ay, aval);
+			continue;
+		    }
+		    group = get_group_of_type (type);
+		    if (!group_ok (group)
+			|| !map_coord_ok (ax, ay)
+			|| !map_rect_ok (ax, ay, main_groups[group].size,
+					main_groups[group].size)) {
+			network_reject ("MSG_BUILD position", ax, ay, aval);
+			continue;
+		    }
+		    {
+			int rc = place_item (ax, ay, type);
+			if (rc == 0) {
+			    network_host_broadcast_build_if_placed (MSG_BUILD,
+								   ax, ay, aval, rc);
+			    /* Report the authoritative post-build balance at once. */
+			    network_host_broadcast_money_all ();
+			} else
+			    network_reject ("MSG_BUILD placement", ax, ay, rc);
+		    }
 		} else if (action == MSG_BULLDOZE) {
-		    bulldoze_item (ax, ay);
-		    network_host_broadcast_action_all (MSG_BULLDOZE, ax, ay, 0);
+		    int bulldozed;
+
+		    if (!map_coord_ok (ax, ay)) {
+			network_reject ("MSG_BULLDOZE position", ax, ay, aval);
+			continue;
+		    }
+		    bulldozed = bulldoze_item (ax, ay);
+		    if (bulldozed > 0) {
+			network_host_broadcast_bulldoze_if_removed (ax, ay, bulldozed);
+			network_host_broadcast_money_all ();
+		    }
 		} else if (action == MSG_MFLAGS) {
-		    MP_INFO(ax, ay).flags = aval;
-		    network_host_broadcast_action_all (MSG_MFLAGS, ax, ay, aval);
+		    int flags;
+
+		    if (!map_coord_ok (ax, ay)) {
+			network_reject ("MSG_MFLAGS position", ax, ay, aval);
+			continue;
+		    }
+		    if (!trade_group_ok (MP_GROUP (ax, ay))) {
+			network_reject ("MSG_MFLAGS group", ax, ay, aval);
+			continue;
+		    }
+		    /* The GUI callback sends the whole flags word, including
+		       coverage and other non-trade bits.  Only the trade bits
+		       are applied; everything else is preserved from the
+		       existing tile. */
+		    flags = merge_trade_flags (MP_INFO (ax, ay).flags, aval);
+		    MP_INFO (ax, ay).flags = flags;
+		    network_host_broadcast_action_all (MSG_MFLAGS, ax, ay, flags);
 		} else if (action == MSG_DRAG_START) {
 		    host_update_drag_pause (1);
 		} else if (action == MSG_DRAG_END) {
@@ -674,15 +1056,11 @@ execute_timestep (void)
 		}
 	    }
 	    if (ret < 0) {
-		/* This client disconnected */
+		/* This client disconnected.  drop_client clears the global
+		   slot and decrements the count only if the fd was tracked. */
+		int dead_fd = all_fds[fi];
 		network_close (&all_fds[fi]);
-		if (all_fds[fi] == network_socket)
-		    network_socket = -1;
-		else
-		    for (int i = 0; i < MAX_CLIENTS - 1; i++)
-			if (network_extra_fds[i] == all_fds[fi])
-			    network_extra_fds[i] = -1;
-		network_num_clients--;
+		network_host_drop_client (dead_fd);
 		host_reset_drag_pause ();
 	    }
 	}
@@ -727,6 +1105,10 @@ execute_timestep (void)
 	char msg = 0;
 	int mx = 0, my = 0, mval = 0;
 	int ret;
+	if (network_client_resync_needed ()) {
+	    fprintf (stderr, "network: action queue overflow; reconnect to resync\n");
+	    network_client_clear_resync_needed ();
+	}
 	while ((ret = network_client_recv_msg (network_socket, &msg, &mx, &my, &mval)) > 0) {
 	    if (msg == MSG_MONEY)
 		total_money = mx;
@@ -742,17 +1124,43 @@ execute_timestep (void)
 		else if (mx == 3) fast_flag = 1;
 	    }
 	    else if (msg == MSG_BUILD) {
-		int g = get_group_of_type ((short)mval);
-		set_mappoint (mx, my, (short)mval);
-		if (g >= 0)
-		    connect_transport (mx - 2, my - 2,
-				       mx + main_groups[g].size + 1,
-				       my + main_groups[g].size + 1);
+		int type = mval;
+		int g;
+
+		if (!type_ok (type)) {
+		    network_reject_client ("MSG_BUILD type", mx, my, type);
+		    continue;
+		}
+		g = get_group_of_type ((short)type);
+		if (!group_ok (g)
+		    || !map_coord_ok (mx, my)
+		    || !map_rect_ok (mx, my, main_groups[g].size,
+				     main_groups[g].size)) {
+		    network_reject_client ("MSG_BUILD position", mx, my, type);
+		    continue;
+		}
+		set_mappoint (mx, my, (short)type);
+		connect_transport (mx - 2, my - 2,
+				   mx + main_groups[g].size + 1,
+				   my + main_groups[g].size + 1);
 	    }
-	    else if (msg == MSG_BULLDOZE)
+	    else if (msg == MSG_BULLDOZE) {
+		if (!map_coord_ok (mx, my)) {
+		    network_reject_client ("MSG_BULLDOZE position", mx, my, mval);
+		    continue;
+		}
 		do_bulldoze_area (CST_GREEN, mx, my);
+	    }
 	    else if (msg == MSG_MFLAGS) {
-		MP_INFO(mx, my).flags = mval;
+		int flags;
+
+		if (!map_coord_ok (mx, my)
+		    || !trade_group_ok (MP_GROUP (mx, my))) {
+		    network_reject_client ("MSG_MFLAGS position/group", mx, my, mval);
+		    continue;
+		}
+		flags = merge_trade_flags (MP_INFO (mx, my).flags, mval);
+		MP_INFO (mx, my).flags = flags;
 	    }
 	    else if (msg == MSG_TECH)
 		tech_level = mx;
@@ -858,7 +1266,7 @@ execute_timestep (void)
 	    next_time_step = real_time + (MED_TIME_FOR_YEAR
 					  * 1000 / NUMOF_DAYS_IN_YEAR);
 
-	if (!(network_game && !network_is_host)) {
+	if (!(network_game && !network_is_host) && !test_freeze_sim) {
 	    do_time_step ();
 	}
 
@@ -901,7 +1309,12 @@ execute_timestep (void)
     check_pending_module ();
 
 #if defined (NETWORK_ENABLE)
-    if (network_flag != 0) {
+    if (headless_host) {
+	do_network_host (headless_players, headless_origin, headless_seed);
+	headless_host = 0;
+	network_flag = 0;
+	let_one_through = 1;
+    } else if (network_flag != 0) {
 	do_network_screen ();
 	network_flag = 0;
 	let_one_through = 1;	/* if we are paused we need */
@@ -1003,9 +1416,11 @@ compile_results (void)
 			      + strlen (RESULTS_FILENAME) + 64)) == 0)
 	malloc_failure ();
 
-    sprintf (s, "%s%c%s", lc_save_dir, PATH_SLASH, RESULTS_FILENAME);
+    snprintf (s, lc_save_dir_len + strlen (LC_SAVE_DIR)
+		      + strlen (RESULTS_FILENAME) + 64,
+		 "%s%c%s", lc_save_dir, PATH_SLASH, RESULTS_FILENAME);
 
-    count_all_groups (group_count);
+    count_all_groups (group_count, NUM_OF_GROUPS);
     if ((outf = fopen (s, "w")) == 0)
     {
 	printf (_("Unable to open %s\n"), RESULTS_FILENAME);
@@ -1094,10 +1509,9 @@ print_results (void)
 			      + strlen (RESULTS_FILENAME) + 64)) == 0)
 	malloc_failure ();
 
-    strcpy (s, "cat ");
-    strcat (s, lc_save_dir);
-    strcat (s, "/");
-    strcat (s, RESULTS_FILENAME);
+    snprintf (s, lc_save_dir_len + strlen (LC_SAVE_DIR)
+	      + strlen (RESULTS_FILENAME) + 64,
+	      "cat %s/%s", lc_save_dir, RESULTS_FILENAME);
     printf ("\n");
     system (s);
     printf ("\n");
@@ -1129,7 +1543,9 @@ window_results (void)
     if ((s = (char *) malloc (lc_save_dir_len + strlen (LC_SAVE_DIR)
 			      + strlen (RESULTS_FILENAME) + 64)) == 0)
 	malloc_failure ();
-    sprintf (s, "%s%c%s", lc_save_dir, PATH_SLASH, RESULTS_FILENAME);
+    snprintf (s, lc_save_dir_len + strlen (LC_SAVE_DIR)
+		      + strlen (RESULTS_FILENAME) + 64,
+		 "%s%c%s", lc_save_dir, PATH_SLASH, RESULTS_FILENAME);
     ok_dial_box (s, RESULTS, 0L);
 }
 

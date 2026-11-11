@@ -141,7 +141,7 @@ open_setcustompalette (XColor * inpal)
 void
 do_setcustompalette (XColor * inpal)
 {
-  int i, n, me = 0, flag[256], vid;
+  int i, n, me = 0;
   int depth;
   long unsigned int plane_masks[3];
   XColor pal[256];
@@ -167,7 +167,6 @@ do_setcustompalette (XColor * inpal)
 			    ,plane_masks, 0, colour_table, 256) == 0)
 	{
 	  me = (*DefaultVisual (display.dpy, display.screen)).map_entries;
-	  vid = (*DefaultVisual (display.dpy, display.screen)).visualid;
 	  display.cmap = XCreateColormap (display.dpy, display.win
 				,DefaultVisual (display.dpy, display.screen)
 	  /*      ,PseudoColor */
@@ -190,9 +189,6 @@ do_setcustompalette (XColor * inpal)
 	HandleError ("No default colour map", FATAL);
     }
 
-  for (i = 0; i < 256; i++)
-    flag[i] = 0;
-
   for (n = 0; n < 256; n++)
     {
       pal[n].red = inpal[n].red << 10;
@@ -212,7 +208,6 @@ do_setcustompalette (XColor * inpal)
 			  ,display.pixcolour_gc[n]
 			  ,colour_table[n]);
 	}
-      flag[n] = 1;
     }
 
   if (writeable_p)
@@ -331,7 +326,6 @@ void
 Create_Window (char *geometry)
 {
     short q;
-    Visual *vid;
     XSetWindowAttributes xswa;
     XSizeHints sizehint;
     XWMHints wmhints;
@@ -347,7 +341,6 @@ Create_Window (char *geometry)
 		  (int) (*DefaultVisual (display.dpy, display.screen)).visualid,
 		  (*DefaultVisual (display.dpy, display.screen)).bits_per_rgb,
 		  (*DefaultVisual (display.dpy, display.screen)).map_entries);
-    vid = DefaultVisual (display.dpy, display.screen);
     display.cmap
 	    = XDefaultColormap (display.dpy, display.screen);
     display.win = XCreateWindow (display.dpy, display.root,
@@ -391,7 +384,7 @@ Create_Window (char *geometry)
 				     False);
 
     /* Title */
-    sprintf ((char *) wname,
+    snprintf ((char *) wname, sizeof(wname),
 	     _("xlincity, Version %s, "
 	     "(Copyright) IJ Peters - copying policy GNU GPL"),
 	     VERSION);

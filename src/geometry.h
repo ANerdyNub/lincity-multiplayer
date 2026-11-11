@@ -131,8 +131,10 @@ void draw_small_bezel (int x, int y, int w, int h, int colour);
 void draw_bezel (Rect r, short width, int color);
 
 /* Text width */
-#define CHAR_HEIGHT 8 
+#define CHAR_HEIGHT 8
+#ifndef CHAR_WIDTH	/* <limits.h> (via zlib.h) also defines this as 8 */
 #define CHAR_WIDTH 8
+#endif
 
 /* Main window */
 #define MAIN_WIN_W 432

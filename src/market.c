@@ -12,10 +12,21 @@
 #include <mps.h>
 #include <lcintl.h>
 #include <lcconfig.h>
+#include "validation.h"
 
 #include <market.h>
 
 
+
+/* A market may feed a transport tile directly or across one intervening
+   track/road/rail/water cell.  Check the destination before MP_INFO() so a
+   corner market cannot probe outside the map. */
+static int
+market_transport_neighbor (int tx, int ty)
+{
+  return map_coord_ok (tx, ty)
+    && (MP_INFO(tx,ty).flags & FLAG_IS_TRANSPORT) != 0;
+}
 
 int
 get_jobs (int x, int y, int jobs)
@@ -380,10 +391,14 @@ void
 remove_a_market (int x, int y)
 {
   int q;
+  if (numof_markets <= 0)
+    return;
   for (q = 0; q < numof_markets; q++)
     if (marketx[q] == x && markety[q] == y)
       break;
-  for (; q < numof_markets; q++)
+  if (q == numof_markets)
+    return;
+  for (; q + 1 < numof_markets; q++)
     {
       marketx[q] = marketx[q + 1];
       markety[q] = markety[q + 1];
@@ -408,25 +423,21 @@ do_market (int x, int y)
 
   shuffle_markets ();
 
-  if (x > 0 && (MP_INFO(x - 1,y).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x - 1, y))
     extra_jobs += deal_with_transport (x, y, x - 1, y);
-  if (x > 0 && (MP_INFO(x - 1,y + 1).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x - 1, y + 1))
     extra_jobs += deal_with_transport (x, y, x - 1, y + 1);
-  if (y > 0 && (MP_INFO(x,y - 1).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x, y - 1))
     extra_jobs += deal_with_transport (x, y, x, y - 1);
-  if (y > 0 && (MP_INFO(x + 1,y - 1).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x + 1, y - 1))
     extra_jobs += deal_with_transport (x, y, x + 1, y - 1);
-  if (x < WORLD_SIDE_LEN - 2
-      && (MP_INFO(x + 2,y).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x + 2, y))
     extra_jobs += deal_with_transport (x, y, x + 2, y);
-  if (x < WORLD_SIDE_LEN - 2
-      && (MP_INFO(x + 2,y + 1).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x + 2, y + 1))
     extra_jobs += deal_with_transport (x, y, x + 2, y + 1);
-  if (y < WORLD_SIDE_LEN - 2
-      && (MP_INFO(x,y + 2).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x, y + 2))
     extra_jobs += deal_with_transport (x, y, x, y + 2);
-  if (y < WORLD_SIDE_LEN - 2
-      && (MP_INFO(x + 1,y + 2).flags & FLAG_IS_TRANSPORT) != 0)
+  if (market_transport_neighbor (x + 1, y + 2))
     extra_jobs += deal_with_transport (x, y, x + 1, y + 2);
 
   if (MP_INFO(x,y).int_1 > MAX_FOOD_IN_MARKET)
@@ -467,6 +478,8 @@ shuffle_markets (void)
 {
   register int x;
   int q, r, m;
+  if (numof_markets < 2)
+    return;
   m = (numof_markets / 4) + 1;
   for (x = 0; x < m; x++)
     {

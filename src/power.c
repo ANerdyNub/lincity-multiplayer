@@ -17,6 +17,7 @@
 #include "simulate.h"
 #include "lcintl.h"
 #include "power.h"
+#include "validation.h"
 #include "transport.h" /* for XY_IS_TRANSPORT */
 
 /* reset per map_power_grid run; how many different grids */
@@ -36,13 +37,23 @@ Grid * grid[MAX_GRIDS];
 void
 power_time_step () 
 {
-    int gi;
+    int gi, nsub, ngrid;
     int net; /* net power */
 
-    if (grid_num == 0)
+    if (grid_num <= 0)
 	return;
 
-    for (gi = 1; gi <= grid_num; gi++) {
+    /* grid_num is normally bounded by map_power_grid(), but never trust a
+       global index at a boundary.  Likewise, a saved count may be corrupt
+       or negative. */
+    ngrid = grid_num;
+    if (ngrid >= MAX_GRIDS)
+	ngrid = MAX_GRIDS - 1;
+
+    for (gi = 1; gi <= ngrid; gi++) {
+	if (grid[gi] == NULL)
+	    continue;
+
 	grid[gi]->total_power = grid[gi]->avail_power - 
 		(grid[gi]->power_lines * POWER_LINE_LOSS);
 
@@ -58,9 +69,18 @@ power_time_step ()
 	grid[gi]->demand = 0;
     }
 
-    /* Clear substation 'Here' counter */
-    for (gi = 0; gi < numof_substations; gi++) 
+    /* Clear substation 'Here' counter.  Clamp the saved count before using
+       it to index the fixed-size coordinate arrays. */
+    nsub = numof_substations;
+    if (nsub < 0)
+	nsub = 0;
+    else if (nsub > MAX_NUMOF_SUBSTATIONS)
+	nsub = MAX_NUMOF_SUBSTATIONS;
+    for (gi = 0; gi < nsub; gi++) {
+	if (!map_coord_ok (substationx[gi], substationy[gi]))
+	    continue;
 	MP_INFO(substationx[gi],substationy[gi]).int_5 = 0;
+    }
 }
 
 
@@ -110,6 +130,9 @@ total.  Now set it to our grid.  If it is a power line, return
 int 
 check_grid(int x, int y, int xi, int yi) 
 {
+  if (x < 0 || y < 0 || x >= WORLD_SIDE_LEN || y >= WORLD_SIDE_LEN)
+    return 0;
+
   if (XY_IS_GRID(x,y) && !IS_OLD_WINDMILL(x,y)) {
     if (GRID_CURRENT(x,y)) {
       if (MP_INFO(x,y).int_6 != grid_num)
@@ -225,7 +248,7 @@ recurse_power_grid (int startx, int starty, int steps)
 	}
 
 	/* East */    
-	if (mapx < WORLD_SIDE_LEN) {
+	if (mapx < WORLD_SIDE_LEN - 1) {
 	    if ((inc = check_grid(mapx + 1, mapy, 1, 0))) {
 		if (dir < 1) {
 		    dir = EAST;
@@ -236,7 +259,7 @@ recurse_power_grid (int startx, int starty, int steps)
 	}
 
 	/* South */    
-	if (mapy < WORLD_SIDE_LEN) {
+	if (mapy < WORLD_SIDE_LEN - 1) {
 	    if ((inc = check_grid(mapx, mapy + 1, 0, 1))) {
 		if (dir < 1) {
 		    dir = SOUTH;
@@ -344,17 +367,23 @@ int
 get_power (int x, int y, int power, int block_industry)
 {
 
-  int i;
+  int i, nsub;
   int xi, yi;
   int grid_tmp; /* for simplicity */
 
-  if (numof_substations == 0)
+  if (numof_substations <= 0 || grid_num <= 0)
     return(0);
 
-  for (i = 0; i < numof_substations; i++) 
+  nsub = numof_substations;
+  if (nsub > MAX_NUMOF_SUBSTATIONS)
+    nsub = MAX_NUMOF_SUBSTATIONS;
+
+  for (i = 0; i < nsub; i++)
     {
       xi = substationx[i];
       yi = substationy[i];
+      if (!map_coord_ok (xi, yi))
+	continue;
       if (abs (xi - x) < SUBSTATION_RANGE && 
 	  abs (yi - y) < SUBSTATION_RANGE) {
 
@@ -362,6 +391,11 @@ get_power (int x, int y, int power, int block_industry)
 	  continue;
 
 	grid_tmp = MP_INFO(xi,yi).int_6;
+	if (grid_tmp <= 0 || grid_tmp > grid_num
+	    || grid_tmp >= MAX_GRIDS || grid[grid_tmp] == NULL) {
+	  /* A corrupt or stale int_6 must not index the grid array. */
+	  continue;
+	}
 
 	grid[grid_tmp]->demand += power;
 	if (grid[grid_tmp]->total_power >= power) {

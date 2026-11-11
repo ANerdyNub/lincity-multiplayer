@@ -170,19 +170,19 @@ si_scroll_text (void)
   XEvent xev;
 #endif
   Fgl_enableclipping ();
-  sprintf (s, "%s%c%s", opening_path, PATH_SLASH, "text1");
+  snprintf (s, sizeof(s), "%s%c%s", opening_path, PATH_SLASH, "text1");
   if ((inf1 = fopen (s, "rb")) == NULL)
     do_error ("Can't open opening/text1");
   for (i = 0; i < 52; i++)
     line1[i] = si_next_char (inf1);
   line1[52] = 0;
-  sprintf (s, "%s%c%s", opening_path, PATH_SLASH, "text2");
+  snprintf (s, sizeof(s), "%s%c%s", opening_path, PATH_SLASH, "text2");
   if ((inf2 = fopen (s, "rb")) == NULL)
     do_error ("Can't open opening/text2");
   for (i = 0; i < 52; i++)
     line2[i] = si_next_char (inf2);
   line2[52] = 0;
-  sprintf (s, "%s%c%s", opening_path, PATH_SLASH, "text3");
+  snprintf (s, sizeof(s), "%s%c%s", opening_path, PATH_SLASH, "text3");
   if ((inf3 = fopen (s, "rb")) == NULL)
     do_error ("Can't open opening/text3");
   for (i = 0; i < 52; i++)

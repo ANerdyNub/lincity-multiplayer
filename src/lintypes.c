@@ -532,8 +532,8 @@ struct GROUP main_groups[NUM_OF_GROUPS] =
 void init_types(void)
 {
     char png_file[LC_PATH_MAX], txt_file[LC_PATH_MAX];
-    sprintf (png_file, "%s%c%s", opening_path, PATH_SLASH, "icons.png");
-    sprintf (txt_file, "%s%c%s", opening_path, PATH_SLASH, "iconlist.txt");
+    snprintf (png_file, sizeof(png_file), "%s%c%s", opening_path, PATH_SLASH, "icons.png");
+    snprintf (txt_file, sizeof(txt_file), "%s%c%s", opening_path, PATH_SLASH, "iconlist.txt");
 
     load_png_graphics (txt_file,png_file);
 
@@ -1482,6 +1482,8 @@ void init_types(void)
 int
 get_group_of_type (short type)
 {
+    if (type < 0 || type >= NUM_OF_TYPES)
+	return -1;
     return main_types[type].group;
 }
 

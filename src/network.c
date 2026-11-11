@@ -8,11 +8,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdint.h>
+#include <limits.h>
+#include <errno.h>
+#include <time.h>
+#include <zlib.h>
 #include "lin-city.h"
 #include "engglobs.h"
 #include "cliglobs.h"
+#include "mapwire.h"
 #include "network.h"
 #include "stats.h"
+#include "validation.h"
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -31,7 +38,6 @@ static void nlog(const char *fmt, ...) {
     }
 }
 #define SOCKCALL(r)    ((int)(r))
-#define CLOSE_SOCK(fd) closesocket((SOCKET)(fd))
 #define SOCK_ERRNO     WSAGetLastError()
 #define SOCK_AGAIN     WSAEWOULDBLOCK
 #define SOCK_EWOULDBLOCK WSAEWOULDBLOCK
@@ -48,7 +54,6 @@ static void nlog(const char *fmt, ...) {
 #include <fcntl.h>
 #include <errno.h>
 #define SOCKCALL(r)    (r)
-#define CLOSE_SOCK(fd) close(fd)
 #define SOCK_ERRNO     errno
 #define SOCK_AGAIN     EAGAIN
 #define SOCK_EWOULDBLOCK EWOULDBLOCK
@@ -76,6 +81,8 @@ network_wsastart(void)
 static void
 network_wsaclean(void)
 {
+    if (winsock_init_count <= 0)
+        return;
     if (--winsock_init_count == 0)
         WSACleanup();
 }
@@ -89,10 +96,82 @@ static void network_wsaclean(void) {}
 /* ---------------------------------------------------------------------- *
  * Raw send / recv
  * ---------------------------------------------------------------------- */
+static uint64_t
+network_monotonic_ms(void)
+{
+#ifdef WIN32
+    return (uint64_t)GetTickCount64();
+#else
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000u
+        + (uint64_t)ts.tv_nsec / 1000000u;
+#endif
+}
+
+/* Wait for readability up to the caller's absolute deadline.  This also
+   makes blocking host sockets honor the deadline before every recv(). */
+static int
+network_wait_readable(int fd, uint64_t deadline)
+{
+    for (;;) {
+        uint64_t now = network_monotonic_ms();
+        uint64_t remaining;
+        struct timeval tv;
+        fd_set rfds;
+        int sr;
+
+        if (now >= deadline)
+            return -1;
+        remaining = deadline - now;
+        tv.tv_sec = (long)(remaining / 1000u);
+        tv.tv_usec = (long)((remaining % 1000u) * 1000u);
+        FD_ZERO(&rfds);
+        FD_SET(fd, &rfds);
+#ifdef WIN32
+        sr = select(0, &rfds, NULL, NULL, &tv);
+#else
+        sr = select(fd + 1, &rfds, NULL, NULL, &tv);
+#endif
+        if (sr > 0)
+            return 0;
+        if (sr < 0) {
+#ifdef WIN32
+            if (SOCK_ERRNO == WSAEINTR)
+#else
+            if (SOCK_ERRNO == EINTR)
+#endif
+                continue;
+            return -1;
+        }
+    }
+}
+
+static int
+network_set_nonblocking(int fd)
+{
+#ifdef WIN32
+    u_long mode = 1;
+    return ioctlsocket((SOCKET)fd, FIONBIO, &mode) == 0 ? 0 : -1;
+#else
+    int fl = fcntl(fd, F_GETFL, 0);
+    if (fl < 0)
+        return -1;
+    return fcntl(fd, F_SETFL, fl | O_NONBLOCK) == 0 ? 0 : -1;
+#endif
+}
+
+static int network_host_is_client_fd(int fd);
+static int network_host_enqueue(int fd, const char *buf, int len);
+
 int
 network_send_raw(int fd, const char *buf, int len)
 {
     int sent = 0, n;
+
+    if (network_host_is_client_fd(fd))
+        return network_host_enqueue(fd, buf, len);
     while (sent < len) {
         n = SOCKCALL(send(fd, buf + sent, len - sent, NO_SIGNAL_SEND_FLAGS));
         if (n <= 0)
@@ -103,37 +182,41 @@ network_send_raw(int fd, const char *buf, int len)
 }
 
 int
-network_recv_raw(int fd, char *buf, int len)
+network_recv_raw(int fd, char *buf, size_t len)
 {
-    int got = 0, n;
+    size_t got = 0;
+    int n;
+    uint64_t deadline;
+
+    if (len > NETWORK_MAX_MAP_BYTES) {
+        fprintf(stderr, "network: raw read too large (%zu > %u)\n",
+                len, NETWORK_MAX_MAP_BYTES);
+        return -1;
+    }
+    deadline = network_monotonic_ms() + NETWORK_IO_TIMEOUT_MS;
     while (got < len) {
-        n = SOCKCALL(recv(fd, buf + got, len - got, 0));
+        if (network_wait_readable(fd, deadline) < 0) {
+            fprintf(stderr, "network: raw read timed out (%zu/%zu)\n",
+                    got, len);
+            return -1;
+        }
+        n = SOCKCALL(recv(fd, buf + got, (int)(len - got), 0));
         if (n > 0) {
-            got += n;
+            got += (size_t)n;
             continue;
         }
         if (n == 0)
             return -1;
-        /* Non-blocking: retry on EAGAIN/EWOULDBLOCK */
+        /* Non-blocking: retry on EAGAIN/EWOULDBLOCK. */
 #ifdef WIN32
-        if (WSAGetLastError() == WSAEWOULDBLOCK) {
+        if (WSAGetLastError() == WSAEWOULDBLOCK)
 #else
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-#endif
-            struct timeval tv = { .tv_sec = 0, .tv_usec = 10000 };
-            fd_set rfds;
-            FD_ZERO(&rfds);
-            FD_SET(fd, &rfds);
-#ifdef WIN32
-            select(0, &rfds, NULL, NULL, &tv);
-#else
-            select(fd + 1, &rfds, NULL, NULL, &tv);
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
 #endif
             continue;
-        }
         return -1;
     }
-    return got;
+    return (int)got;
 }
 
 int
@@ -157,9 +240,19 @@ network_recv_line(int fd, char *buf, int bufsize)
 {
     int i = 0;
     char c;
+    uint64_t deadline;
 
+    if (bufsize <= 0)
+        return -1;
+    deadline = network_monotonic_ms() + NETWORK_IO_TIMEOUT_MS;
     while (i < bufsize - 1) {
-        int n = SOCKCALL(recv(fd, &c, 1, 0));
+        int n;
+
+        if (network_wait_readable(fd, deadline) < 0) {
+            fprintf(stderr, "network: line read timed out (%d bytes)\n", i);
+            return -1;
+        }
+        n = SOCKCALL(recv(fd, &c, 1, 0));
         if (n > 0) {
             if (c == '\n')
                 break;
@@ -170,33 +263,119 @@ network_recv_line(int fd, char *buf, int bufsize)
             fprintf(stderr, "network: recv_line: connection closed (fd=%d)\n", fd); fflush(stderr);
             return -1;
         }
-        /* Non-blocking: retry on EAGAIN/EWOULDBLOCK */
+        /* Non-blocking: retry on EAGAIN/EWOULDBLOCK. */
 #ifdef WIN32
-        int wsa_err = WSAGetLastError();
-        if (wsa_err == WSAEWOULDBLOCK) {
-#else
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-#endif
-            struct timeval tv = { .tv_sec = 0, .tv_usec = 10000 };
-            fd_set rfds;
-            FD_ZERO(&rfds);
-            FD_SET(fd, &rfds);
-#ifdef WIN32
-            select(0, &rfds, NULL, NULL, &tv);
-#else
-            select(fd + 1, &rfds, NULL, NULL, &tv);
-#endif
+        if (WSAGetLastError() == WSAEWOULDBLOCK)
             continue;
-        }
-#ifdef WIN32
-        fprintf(stderr, "network: recv_line: error fd=%d err=%d\n", fd, wsa_err); fflush(stderr);
+        fprintf(stderr, "network: recv_line: error fd=%d err=%d\n", fd, SOCK_ERRNO); fflush(stderr);
 #else
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            continue;
         fprintf(stderr, "network: recv_line: error fd=%d err=%d\n", fd, errno); fflush(stderr);
 #endif
         return -1;
     }
     buf[i] = '\0';
     return i;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Compressed map transport
+ * ---------------------------------------------------------------------- */
+/* The fixed-width array codec lives in mapwire.h; this file adds the
+ * existing zlib blob header:
+ *   uncomp_size (uint32 LE) + comp_size (uint32 LE) + comp_data */
+static int
+send_compressed_map(int fd,
+    short type[WORLD_SIDE_LEN][WORLD_SIDE_LEN],
+    short group[WORLD_SIDE_LEN][WORLD_SIDE_LEN],
+    Map_Point_Info info[WORLD_SIDE_LEN][WORLD_SIDE_LEN],
+    int pollution[WORLD_SIDE_LEN][WORLD_SIDE_LEN])
+{
+    size_t usz = MAP_WIRE_BYTES;
+    unsigned char *u = (unsigned char *)malloc(usz);
+    unsigned char *p = u ? map_wire_encode(WORLD_SIDE_LEN, type, group,
+                                          info, pollution, u) : NULL;
+
+    if (!u || !p || (size_t)(p - u) != usz) {
+        free(u);
+        return -1;
+    }
+
+    uLongf csz = compressBound(usz);
+    unsigned char *c = (unsigned char *)malloc(csz);
+    if (!c) { free(u); return -1; }
+
+    if (compress(c, &csz, u, usz) != Z_OK) {
+        free(u); free(c); return -1;
+    }
+    free(u);
+
+    unsigned char hdr[8];
+    map_put_u32le(hdr, (uint32_t)usz);
+    map_put_u32le(hdr + 4, (uint32_t)csz);
+    int ok = 1;
+    if (network_send_raw(fd, (char*)hdr, 8) < 0) ok = 0;
+    else if (network_send_raw(fd, (char*)c, csz) < 0) ok = 0;
+    free(c);
+    return ok ? 0 : -1;
+}
+
+/* Inverse — receive compressed blob, decompress, decode fixed-width arrays,
+   then validate the type/group pairs before exposing them to the engine. */
+static int
+recv_compressed_map(int fd,
+    short type[WORLD_SIDE_LEN][WORLD_SIDE_LEN],
+    short group[WORLD_SIDE_LEN][WORLD_SIDE_LEN],
+    Map_Point_Info info[WORLD_SIDE_LEN][WORLD_SIDE_LEN],
+    int pollution[WORLD_SIDE_LEN][WORLD_SIDE_LEN])
+{
+    size_t expected = MAP_WIRE_BYTES;
+
+    unsigned char hdr[8];
+    if (network_recv_raw(fd, (char*)hdr, 8) < 0) return -1;
+    size_t usz = map_get_u32le(hdr);
+    size_t csz = map_get_u32le(hdr + 4);
+
+    if (usz != expected) {
+        fprintf(stderr, "network: compressed world size mismatch (%zu != %zu)\n",
+                usz, expected);
+        return -1;
+    }
+    if (csz == 0 || csz > NETWORK_MAX_MAP_BYTES
+        || csz > (size_t)compressBound((uLong)expected)) {
+        fprintf(stderr, "network: compressed world length out of range (%zu)\n",
+                csz);
+        return -1;
+    }
+
+    unsigned char *c = (unsigned char *)malloc(csz);
+    if (!c) return -1;
+    if (network_recv_raw(fd, (char*)c, csz) < 0) { free(c); return -1; }
+
+    unsigned char *u = (unsigned char *)malloc(usz);
+    if (!u) { free(c); return -1; }
+    uLongf dec = usz;
+    if (uncompress(u, &dec, c, csz) != Z_OK || dec != usz) {
+        fprintf(stderr, "network: uncompress failed\n");
+        free(c); free(u); return -1;
+    }
+    free(c);
+
+    const unsigned char *p = map_wire_decode(WORLD_SIDE_LEN, u, type, group,
+                                             info, pollution);
+    if (!p || (size_t)(p - u) != expected) {
+        fprintf(stderr, "network: world decode size mismatch\n");
+        free(u);
+        return -1;
+    }
+    free(u);
+
+    if (!map_state_ok(type, group, info, -1, NULL, NULL, -1, NULL, NULL)) {
+        fprintf(stderr, "network: received world failed map validation\n");
+        return -1;
+    }
+    return 0;
 }
 
 /* ---------------------------------------------------------------------- *
@@ -232,7 +411,7 @@ network_host_start(int port)
         return -1;
     }
     fprintf(stderr, "network: listening...\n"); fflush(stderr);
-    if (listen(fd, 1) < 0) {
+    if (listen(fd, MAX_CLIENTS) < 0) {
         CLOSE_SOCK(fd);
         return -1;
     }
@@ -268,22 +447,256 @@ network_host_wait_client(int server_fd)
     return fd;
 }
 
+/* Each accepted client gets its own non-blocking line buffer.  A partial
+   line is retained across frames; the simulation never waits for a newline. */
+#ifndef NETWORK_HOST_TX_BYTES
+#define NETWORK_HOST_TX_BYTES (1024u * 1024u)
+#endif
+
+struct network_host_line {
+    int fd;
+    int dead;
+    size_t len;
+    size_t tx_len;
+    char buf[NETWORK_BUF_SIZE + 1];
+    char tx_buf[NETWORK_HOST_TX_BYTES];
+};
+
+static struct network_host_line host_lines[MAX_CLIENTS];
+static int host_lines_ready = 0;
+
+static void
+network_host_lines_init(void)
+{
+    if (host_lines_ready)
+        return;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        host_lines[i].fd = -1;
+        host_lines[i].dead = 0;
+        host_lines[i].len = 0;
+        host_lines[i].tx_len = 0;
+    }
+    host_lines_ready = 1;
+}
+
+static int
+network_host_is_client_fd(int fd)
+{
+    if (!network_is_host || fd < 0)
+        return 0;
+    if (fd == network_socket)
+        return 1;
+    for (int i = 0; i < MAX_CLIENTS - 1; i++)
+        if (fd == network_extra_fds[i])
+            return 1;
+    return 0;
+}
+
+static struct network_host_line *
+network_host_line_slot(int fd, int create)
+{
+    struct network_host_line *free_slot = NULL;
+
+    network_host_lines_init();
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (host_lines[i].fd == fd)
+            return &host_lines[i];
+        if (host_lines[i].fd < 0 && !free_slot)
+            free_slot = &host_lines[i];
+    }
+    if (!create || !free_slot)
+        return NULL;
+#ifdef WIN32
+    /* POSIX uses MSG_DONTWAIT per read so host sends stay blocking until
+       the separate slow-send queue work. */
+    if (network_set_nonblocking(fd) < 0) {
+        fprintf(stderr, "network: could not set client fd %d non-blocking\n", fd);
+        fflush(stderr);
+        return NULL;
+    }
+#endif
+    free_slot->fd = fd;
+    free_slot->dead = 0;
+    free_slot->len = 0;
+    free_slot->tx_len = 0;
+    return free_slot;
+}
+
+void
+network_host_forget_client(int client_fd)
+{
+    struct network_host_line *slot;
+
+    if (client_fd < 0)
+        return;
+    slot = network_host_line_slot(client_fd, 0);
+    if (slot) {
+        slot->fd = -1;
+        slot->dead = 0;
+        slot->len = 0;
+        slot->tx_len = 0;
+    }
+}
+
+/* Remove one dead client from all host bookkeeping.  The return value is
+   true only when the fd was actually tracked, so a duplicate fd in the
+   caller's snapshot cannot decrement network_num_clients twice. */
+int
+network_host_drop_client(int client_fd)
+{
+    int found = 0;
+
+    if (client_fd < 0)
+        return 0;
+    if (client_fd == network_socket)
+        found = 1;
+    for (int i = 0; i < MAX_CLIENTS - 1; i++) {
+        if (network_extra_fds[i] == client_fd) {
+            network_extra_fds[i] = -1;
+            found = 1;
+        }
+    }
+    if (!found)
+        return 0;
+    if (client_fd == network_socket)
+        network_socket = -1;
+    network_host_forget_client(client_fd);
+    if (network_num_clients > 0)
+        network_num_clients--;
+    return 1;
+}
+
+static int
+network_host_flush_slot(struct network_host_line *slot)
+{
+    while (slot->tx_len > 0) {
+        int n;
+#ifdef WIN32
+        n = SOCKCALL(send(slot->fd, slot->tx_buf, slot->tx_len,
+                          NO_SIGNAL_SEND_FLAGS));
+#else
+        n = SOCKCALL(send(slot->fd, slot->tx_buf, slot->tx_len,
+                          MSG_DONTWAIT | MSG_NOSIGNAL));
+#endif
+        if (n > 0) {
+            memmove(slot->tx_buf, slot->tx_buf + n,
+                    slot->tx_len - (size_t)n);
+            slot->tx_len -= (size_t)n;
+            continue;
+        }
+        if (n < 0 && (SOCK_ERRNO == SOCK_AGAIN
+                      || SOCK_ERRNO == SOCK_EWOULDBLOCK))
+            return 0;
+        fprintf(stderr, "network: host send failed; disconnecting client fd=%d\n",
+                slot->fd);
+        fflush(stderr);
+        slot->dead = 1;
+        return -1;
+    }
+    return 0;
+}
+
+static int
+network_host_enqueue(int fd, const char *buf, int len)
+{
+    struct network_host_line *slot;
+
+    if (len < 0)
+        return -1;
+    slot = network_host_line_slot(fd, 1);
+    if (!slot || slot->dead)
+        return -1;
+    if ((size_t)len > sizeof(slot->tx_buf) - slot->tx_len) {
+        fprintf(stderr, "network: host send queue full; disconnecting client fd=%d\n",
+                fd);
+        fflush(stderr);
+        slot->dead = 1;
+        return -1;
+    }
+    memcpy(slot->tx_buf + slot->tx_len, buf, (size_t)len);
+    slot->tx_len += (size_t)len;
+    return network_host_flush_slot(slot);
+}
+
+void
+network_host_flush_all(void)
+{
+    network_host_lines_init();
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (host_lines[i].fd >= 0 && !host_lines[i].dead)
+            network_host_flush_slot(&host_lines[i]);
+    }
+}
+
+static int
+network_host_recv_line(int fd, char *buf, int bufsize)
+{
+    struct network_host_line *slot = network_host_line_slot(fd, 1);
+
+    if (!slot || slot->dead || bufsize <= 0)
+        return -1;
+    for (;;) {
+        char *nl = memchr(slot->buf, '\n', slot->len);
+        if (nl) {
+            size_t line_len = (size_t)(nl - slot->buf);
+            size_t rest;
+
+            if (line_len >= (size_t)bufsize) {
+                fprintf(stderr, "network: host line too long; disconnecting client fd=%d\n", fd);
+                fflush(stderr);
+                slot->len = 0;
+                return -1;
+            }
+            memcpy(buf, slot->buf, line_len);
+            buf[line_len] = '\0';
+            rest = slot->len - line_len - 1;
+            memmove(slot->buf, nl + 1, rest);
+            slot->len = rest;
+            return (int)line_len;
+        }
+        if (slot->len >= sizeof(slot->buf)) {
+            fprintf(stderr, "network: host line too long; disconnecting client fd=%d\n", fd);
+            fflush(stderr);
+            slot->len = 0;
+            return -1;
+        }
+        {
+#ifdef WIN32
+            int n = SOCKCALL(recv(fd, slot->buf + slot->len,
+                                  (int)(sizeof(slot->buf) - slot->len), 0));
+#else
+            int n = SOCKCALL(recv(fd, slot->buf + slot->len,
+                                  (int)(sizeof(slot->buf) - slot->len),
+                                  MSG_DONTWAIT));
+#endif
+            if (n > 0) {
+                slot->len += (size_t)n;
+                continue;
+            }
+            if (n == 0)
+                return -1;
+#ifdef WIN32
+            if (WSAGetLastError() == WSAEWOULDBLOCK)
+#else
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+#endif
+                return 0;
+            return -1;
+        }
+    }
+}
+
 void
 network_host_stop(int server_fd, int client_fd)
 {
     if (client_fd >= 0) {
         network_send_text(client_fd, "%d\n", MSG_QUIT);
+        network_host_forget_client(client_fd);
         CLOSE_SOCK(client_fd);
     }
     if (server_fd >= 0)
         CLOSE_SOCK(server_fd);
     network_wsaclean();
-}
-
-static int
-send_array_raw(int fd, short arr[WORLD_SIDE_LEN][WORLD_SIDE_LEN])
-{
-    return network_send_raw(fd, (char*)arr, sizeof(short) * WORLD_SIDE_LEN * WORLD_SIDE_LEN);
 }
 
 int
@@ -292,32 +705,17 @@ network_host_send_map(int client_fd)
     char buf[128];
 
     nlog("send_map(%d)\n", client_fd);
-    snprintf(buf, sizeof(buf), "%d %d\n", MSG_WELCOME, WORLD_SIDE_LEN);
+    snprintf(buf, sizeof(buf), "%d %d %d\n", MSG_WELCOME, WORLD_SIDE_LEN,
+             NETWORK_VERSION);
     if (network_send_raw(client_fd, buf, strlen(buf)) < 0) {
         nlog("send_map: welcome failed\n");
         return -1;
     }
     nlog("send_map: welcome sent\n");
 
-    nlog("send_map: sending type...\n");
-    if (send_array_raw(client_fd, map.type) < 0) {
-        nlog("send_map: type failed\n");
-        return -1;
-    }
-    nlog("send_map: sending group...\n");
-    if (send_array_raw(client_fd, map.group) < 0) {
-        nlog("send_map: group failed\n");
-        return -1;
-    }
-
-    nlog("send_map: sending info...\n");
-    if (network_send_raw(client_fd, (char*)map.info, sizeof(Map_Point_Info) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        nlog("send_map: info failed\n");
-        return -1;
-    }
-    nlog("send_map: sending pollution...\n");
-    if (network_send_raw(client_fd, (char*)map.pollution, sizeof(int) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        nlog("send_map: pollution failed\n");
+    nlog("send_map: sending compressed world...\n");
+    if (send_compressed_map(client_fd, map.type, map.group, map.info, map.pollution) < 0) {
+        nlog("send_map: compressed send failed\n");
         return -1;
     }
 
@@ -424,27 +822,9 @@ network_host_send_info(int client_fd)
         return -1;
     }
 
-    fprintf(stderr, "network: sending type array...\n"); fflush(stderr);
-    if (send_array_raw(client_fd, map.type) < 0) {
-        fprintf(stderr, "network: send type array failed\n"); fflush(stderr);
-        return -1;
-    }
-
-    fprintf(stderr, "network: sending group array...\n"); fflush(stderr);
-    if (send_array_raw(client_fd, map.group) < 0) {
-        fprintf(stderr, "network: send group array failed\n"); fflush(stderr);
-        return -1;
-    }
-
-    fprintf(stderr, "network: sending info array...\n"); fflush(stderr);
-    if (network_send_raw(client_fd, (char*)map.info, sizeof(Map_Point_Info) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        fprintf(stderr, "network: send info array failed\n"); fflush(stderr);
-        return -1;
-    }
-
-    fprintf(stderr, "network: sending pollution array...\n"); fflush(stderr);
-    if (network_send_raw(client_fd, (char*)map.pollution, sizeof(int) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        fprintf(stderr, "network: send pollution array failed\n"); fflush(stderr);
+    fprintf(stderr, "network: sending compressed world...\n"); fflush(stderr);
+    if (send_compressed_map(client_fd, map.type, map.group, map.info, map.pollution) < 0) {
+        fprintf(stderr, "network: send compressed world failed\n"); fflush(stderr);
         return -1;
     }
 
@@ -457,38 +837,122 @@ network_host_send_info(int client_fd)
     return 0;
 }
 
+static void
+network_bad_action(void)
+{
+    static time_t last = 0;
+    time_t now = time(NULL);
+
+    if (now != last) {
+        fprintf(stderr, "network: rejected malformed action line\n");
+        fflush(stderr);
+        last = now;
+    }
+}
+
+/* The client sees one host stream.  Log every malformed line so the client
+   repro can prove that each payload was actually parsed and rejected. */
+static void
+network_bad_client_action(void)
+{
+    fprintf(stderr, "network: rejected malformed action line\n");
+    fflush(stderr);
+}
+
+static int
+parse_action_int(char **pp, int *out)
+{
+    char *end;
+    long value;
+
+    errno = 0;
+    value = strtol(*pp, &end, 10);
+    if (end == *pp || errno == ERANGE || value < INT_MIN || value > INT_MAX)
+        return -1;
+    *out = (int)value;
+    *pp = end;
+    return 0;
+}
+
+/* Parse up to four bounded integers from a complete action line.  Both the
+   host and the client use this so a malformed value cannot wrap through
+   sscanf or leave trailing garbage unread. */
+static int
+parse_action_values(const char *line, int values[4])
+{
+    char *p = (char *)line;
+    int nvalues = 0;
+
+    while (nvalues < 4) {
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '\0' || *p == '\r') break;
+        if (parse_action_int(&p, &values[nvalues]) < 0)
+            return -1;
+        nvalues++;
+    }
+    while (*p == ' ' || *p == '\t' || *p == '\r') p++;
+    if (*p != '\0')
+        return -1;
+    return nvalues;
+}
+
+/* Read exactly one hello line before the host sends any map bytes.  A bad
+   or mismatched version gets an explicit disconnect line and a close. */
+int
+network_host_verify_hello(int client_fd)
+{
+    char buf[128];
+    int values[4] = { 0, 0, 0, 0 };
+    int n = network_recv_line(client_fd, buf, sizeof(buf));
+
+    if (n <= 0) {
+        fprintf(stderr, "network: rejected client protocol hello (no line)\n");
+        fflush(stderr);
+        return -1;
+    }
+    if (parse_action_values(buf, values) == 2 && values[0] == MSG_HELLO) {
+        if (values[1] == NETWORK_VERSION) {
+            fprintf(stderr, "network: client protocol version %d accepted\n",
+                    NETWORK_VERSION);
+            fflush(stderr);
+            return 0;
+        }
+        fprintf(stderr,
+                "network: rejected client protocol version %d (expected %d)\n",
+                values[1], NETWORK_VERSION);
+    } else {
+        fprintf(stderr, "network: rejected malformed client hello [%s]\n", buf);
+    }
+    fflush(stderr);
+    network_send_text(client_fd, "%d\n", MSG_DISCONN);
+    return -1;
+}
+
 int
 network_host_recv_action(int client_fd, char *action, int *x, int *y, int *val)
 {
     char buf[NETWORK_BUF_SIZE];
-    fd_set rfds;
-    struct timeval tv;
-    int n, msg;
+    int n;
+    int values[4] = { 0, 0, 0, 0 };
+    int nvalues;
 
-    /* Poll: return 0 if no data (non-blocking check on a blocking socket) */
-    FD_ZERO(&rfds);
-    FD_SET(client_fd, &rfds);
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    {
-#ifdef WIN32
-	int sr = select(0, &rfds, NULL, NULL, &tv);
-#else
-	int sr = select(client_fd + 1, &rfds, NULL, NULL, &tv);
-#endif
-	if (sr <= 0) return 0;
-    }
-
-    n = network_recv_line(client_fd, buf, sizeof(buf));
-    if (n <= 0)
+    n = network_host_recv_line(client_fd, buf, sizeof(buf));
+    if (n < 0)
 	return -1;
+    if (n == 0)
+	return 0;
 
-    *x = *y = *val = 0;
-    if (sscanf(buf, "%d %d %d %d", &msg, x, y, val) >= 2) {
-        *action = (char)msg;
-        return 1;
+    nvalues = parse_action_values(buf, values);
+    if (nvalues < 2 || values[0] < 0 || values[0] > 255) {
+        network_bad_action();
+        return 0;
     }
-    return 0;
+
+    *action = (char)values[0];
+    *x = values[1];
+    *y = values[2];
+    *val = values[3];
+    return 1;
 }
 
 /* ---------------------------------------------------------------------- *
@@ -504,6 +968,26 @@ network_host_broadcast_action_all(char type, int x, int y, int val)
         if (network_extra_fds[i] >= 0)
             ok |= network_host_broadcast_action(network_extra_fds[i], type, x, y, val);
     return ok;
+}
+
+/* Replicate a host action only after the local engine accepted it.  These
+   helpers keep failed placements from reaching clients on every host path:
+   remote actions, ordinary mouse placement, and drag/overwrite drag paths. */
+int
+network_host_broadcast_build_if_placed(char type, int x, int y, int val,
+                                       int result)
+{
+    if (result != 0)
+        return 0;
+    return network_host_broadcast_action_all(type, x, y, val);
+}
+
+int
+network_host_broadcast_bulldoze_if_removed(int x, int y, int removed)
+{
+    if (removed <= 0)
+        return 0;
+    return network_host_broadcast_action_all(MSG_BULLDOZE, x, y, 0);
 }
 
 int
@@ -632,6 +1116,16 @@ network_client_connect(const char *host, int port)
         return -1;
     }
     fprintf(stderr, "network: connected, fd=%d\n", fd); fflush(stderr);
+    network_client_reset_send_queue();
+
+    /* The host must see the version before it sends a welcome or map. */
+    if (network_send_text(fd, "%d %d\n", MSG_HELLO, NETWORK_VERSION) < 0) {
+        fprintf(stderr, "network: client hello send failed\n");
+        fflush(stderr);
+        CLOSE_SOCK(fd);
+        network_wsaclean();
+        return -1;
+    }
 
     /* TCP_NODELAY: disable Nagle so actions arrive without delay */
     {
@@ -641,33 +1135,23 @@ network_client_connect(const char *host, int port)
 
     /* Non-blocking: prevents send() in network_client_send_action
        from freezing the mouse handler when the kernel buffer is full. */
-#ifdef WIN32
-    {
-        u_long mode = 1;
-        ioctlsocket((SOCKET)fd, FIONBIO, &mode);
+    if (network_set_nonblocking(fd) < 0) {
+        fprintf(stderr, "network: could not set client fd %d non-blocking\n", fd);
+        fflush(stderr);
+        CLOSE_SOCK(fd);
+        network_wsaclean();
+        return -1;
     }
-#else
-    {
-        int fl = fcntl(fd, F_GETFL, 0);
-        if (fl >= 0)
-            fcntl(fd, F_SETFL, fl | O_NONBLOCK);
-    }
-#endif
 
     return fd;
-}
-
-static int
-recv_array_raw(int fd, short arr[WORLD_SIDE_LEN][WORLD_SIDE_LEN])
-{
-    return network_recv_raw(fd, (char*)arr, sizeof(short) * WORLD_SIDE_LEN * WORLD_SIDE_LEN);
 }
 
 int
 network_client_recv_map(int fd)
 {
     char buf[128];
-    int n, ws, code;
+    int n;
+    int values[4] = { 0, 0, 0, 0 };
 
     fprintf(stderr, "network: recv_map: welcome line...\n"); fflush(stderr);
     nlog("recv_map(%d)\n", fd);
@@ -678,43 +1162,29 @@ network_client_recv_map(int fd)
         return -1;
     }
 
-    if (sscanf(buf, "%d %d", &code, &ws) < 2 || code != MSG_WELCOME) {
-        nlog("recv_map: bad welcome code=%d ws=%d\n", code, ws);
-        fprintf(stderr, "network: recv_map: bad welcome code=%d ws=%d\n", code, ws); fflush(stderr);
+    if (parse_action_values(buf, values) != 3 || values[0] != MSG_WELCOME) {
+        fprintf(stderr, "network: recv_map: bad welcome [%s]\n", buf);
+        fflush(stderr);
         return -1;
     }
-    if (ws != WORLD_SIDE_LEN) {
-        fprintf(stderr, "network: recv_map: bad world size %d\n", ws); fflush(stderr);
+    if (values[1] != WORLD_SIDE_LEN) {
+        fprintf(stderr, "network: recv_map: bad world size %d\n", values[1]);
+        fflush(stderr);
         return -1;
     }
-
-    fprintf(stderr, "network: recv_map: receiving type...\n"); fflush(stderr);
-    nlog("recv_map: receiving type...\n");
-    if (recv_array_raw(fd, map.type) < 0) {
-        nlog("recv_map: type failed\n");
-        fprintf(stderr, "network: recv_map: type failed\n"); fflush(stderr);
-        return -1;
-    }
-    fprintf(stderr, "network: recv_map: receiving group...\n"); fflush(stderr);
-    nlog("recv_map: receiving group...\n");
-    if (recv_array_raw(fd, map.group) < 0) {
-        nlog("recv_map: group failed\n");
-        fprintf(stderr, "network: recv_map: group failed\n"); fflush(stderr);
+    if (values[2] != NETWORK_VERSION) {
+        fprintf(stderr,
+                "network: recv_map: protocol version mismatch (%d != %d)\n",
+                values[2], NETWORK_VERSION);
+        fflush(stderr);
         return -1;
     }
 
-    fprintf(stderr, "network: recv_map: receiving info...\n"); fflush(stderr);
-    nlog("recv_map: receiving info...\n");
-    if (network_recv_raw(fd, (char*)map.info, sizeof(Map_Point_Info) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        nlog("recv_map: info failed\n");
-        fprintf(stderr, "network: recv_map: info failed\n"); fflush(stderr);
-        return -1;
-    }
-    fprintf(stderr, "network: recv_map: receiving pollution...\n"); fflush(stderr);
-    nlog("recv_map: receiving pollution...\n");
-    if (network_recv_raw(fd, (char*)map.pollution, sizeof(int) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        nlog("recv_map: pollution failed\n");
-        fprintf(stderr, "network: recv_map: pollution failed\n"); fflush(stderr);
+    fprintf(stderr, "network: recv_map: receiving compressed world...\n"); fflush(stderr);
+    nlog("recv_map: receiving compressed world...\n");
+    if (recv_compressed_map(fd, map.type, map.group, map.info, map.pollution) < 0) {
+        nlog("recv_map: compressed recv failed\n");
+        fprintf(stderr, "network: recv_map: compressed recv failed\n"); fflush(stderr);
         return -1;
     }
 
@@ -726,26 +1196,115 @@ network_client_recv_map(int fd)
         fprintf(stderr, "network: recv_map: OK line failed (n=%d)\n", n); fflush(stderr);
         return -1;
     }
+    if (parse_action_values(buf, values) != 1 || values[0] != MSG_OK) {
+        fprintf(stderr, "network: expected OK after map, got [%s]\n", buf);
+        fflush(stderr);
+        return -1;
+    }
     nlog("recv_map: done OK\n");
     fprintf(stderr, "network: recv_map: done OK\n"); fflush(stderr);
+    return 0;
+}
+
+#define NETWORK_CLIENT_TX_BYTES 8192
+
+static int client_tx_fd = -1;
+static size_t client_tx_len = 0;
+static char client_tx_buf[NETWORK_CLIENT_TX_BYTES];
+static unsigned long client_tx_dropped = 0;
+static int client_tx_resync_needed = 0;
+
+void
+network_client_reset_send_queue(void)
+{
+    client_tx_fd = -1;
+    client_tx_len = 0;
+    client_tx_resync_needed = 0;
+}
+
+unsigned long
+network_client_dropped_actions(void)
+{
+    return client_tx_dropped;
+}
+
+int
+network_client_resync_needed(void)
+{
+    return client_tx_resync_needed;
+}
+
+void
+network_client_clear_resync_needed(void)
+{
+    client_tx_resync_needed = 0;
+}
+
+int
+network_client_flush(int fd)
+{
+    if (fd < 0)
+        return -1;
+    if (client_tx_fd != fd) {
+        client_tx_fd = fd;
+        client_tx_len = 0;
+    }
+    while (client_tx_len > 0) {
+        int n = SOCKCALL(send(fd, client_tx_buf, client_tx_len, SEND_FLAGS));
+        if (n > 0) {
+            memmove(client_tx_buf, client_tx_buf + n,
+                    client_tx_len - (size_t)n);
+            client_tx_len -= (size_t)n;
+            continue;
+        }
+        if (n < 0 && (SOCK_ERRNO == SOCK_AGAIN
+                      || SOCK_ERRNO == SOCK_EWOULDBLOCK))
+            return 0;
+        client_tx_len = 0;
+        return -1;
+    }
     return 0;
 }
 
 int
 network_client_send_action(int fd, char type, int x, int y, int val)
 {
-    /* Non-blocking send — small text msgs only.  If the kernel buffer is
-       full the msg is silently dropped; callers handle this gracefully. */
     char buf[128];
     int len = snprintf(buf, sizeof(buf), "%d %d %d %d\n", type, x, y, val);
+
     if (len < 0 || len >= (int)sizeof(buf))
         return -1;
-    int n = SOCKCALL(send(fd, buf, len, SEND_FLAGS));
-    if (n < 0 && (SOCK_ERRNO == SOCK_AGAIN || SOCK_ERRNO == SOCK_EWOULDBLOCK))
-        return 0; /* pretend success — msg was best-effort */
-    if (n <= 0)
+    if (fd < 0)
         return -1;
-    return n;
+    if (client_tx_fd != fd) {
+        client_tx_fd = fd;
+        client_tx_len = 0;
+    }
+    if ((size_t)len > sizeof(client_tx_buf) - client_tx_len) {
+        client_tx_dropped++;
+        client_tx_resync_needed = 1;
+        fprintf(stderr, "network: client send queue full; action lost; "
+                "reconnect to resync\n");
+        fflush(stderr);
+        return -1;
+    }
+    memcpy(client_tx_buf + client_tx_len, buf, (size_t)len);
+    client_tx_len += (size_t)len;
+    return network_client_flush(fd) < 0 ? -1 : 0;
+}
+
+/* Client requests are intentionally side-effect free.  The host is the only
+   writer of the shared map; these helpers only put the request on the wire. */
+int
+network_client_request_bulldoze(int fd, int x, int y)
+{
+    return network_client_send_action(fd, MSG_BULLDOZE, x, y, 0);
+}
+
+int
+network_client_request_mflags(int fd, int x, int y, int flags)
+{
+    return network_client_send_action(fd, MSG_MFLAGS, x, y, flags);
 }
 
 int
@@ -754,7 +1313,9 @@ network_client_recv_msg(int fd, char *action, int *x, int *y, int *val)
     char buf[NETWORK_BUF_SIZE];
     fd_set rfds;
     struct timeval tv;
-    int n, msg;
+    int n;
+    int values[4] = { 0, 0, 0, 0 };
+    int nvalues;
 
     /* Poll: return 0 if no data (non-blocking check on a blocking socket) */
     FD_ZERO(&rfds);
@@ -775,12 +1336,19 @@ network_client_recv_msg(int fd, char *action, int *x, int *y, int *val)
     if (n <= 0)
         return -1;
 
-    *x = *y = *val = 0;
-    if (sscanf(buf, "%d %d %d %d", &msg, x, y, val) >= 1) {
-        *action = (char)msg;
-        return 1;
+    if (network_client_flush(fd) < 0)
+        return -1;
+
+    nvalues = parse_action_values(buf, values);
+    if (nvalues < 1 || values[0] < 0 || values[0] > 255) {
+        network_bad_client_action();
+        return 0;
     }
-    return 0;
+    *action = (char)values[0];
+    *x = values[1];
+    *y = values[2];
+    *val = values[3];
+    return 1;
 }
 
 int
@@ -791,27 +1359,9 @@ network_client_recv_info(int fd)
 
     fprintf(stderr, "network_client_recv_info(%d)\n", fd); fflush(stderr);
 
-    fprintf(stderr, "network: receiving type array...\n"); fflush(stderr);
-    if (recv_array_raw(fd, map.type) < 0) {
-        fprintf(stderr, "network: recv type array failed\n"); fflush(stderr);
-        return -1;
-    }
-
-    fprintf(stderr, "network: receiving group array...\n"); fflush(stderr);
-    if (recv_array_raw(fd, map.group) < 0) {
-        fprintf(stderr, "network: recv group array failed\n"); fflush(stderr);
-        return -1;
-    }
-
-    fprintf(stderr, "network: receiving info array...\n"); fflush(stderr);
-    if (network_recv_raw(fd, (char*)map.info, sizeof(Map_Point_Info) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        fprintf(stderr, "network: recv info array failed\n"); fflush(stderr);
-        return -1;
-    }
-
-    fprintf(stderr, "network: receiving pollution array...\n"); fflush(stderr);
-    if (network_recv_raw(fd, (char*)map.pollution, sizeof(int) * WORLD_SIDE_LEN * WORLD_SIDE_LEN) < 0) {
-        fprintf(stderr, "network: recv pollution array failed\n"); fflush(stderr);
+    fprintf(stderr, "network: receiving compressed world...\n"); fflush(stderr);
+    if (recv_compressed_map(fd, map.type, map.group, map.info, map.pollution) < 0) {
+        fprintf(stderr, "network: recv compressed world failed\n"); fflush(stderr);
         return -1;
     }
 
@@ -833,6 +1383,7 @@ void
 network_client_disconnect(int fd)
 {
     if (fd >= 0) {
+        network_client_reset_send_queue();
         network_send_text(fd, "%d\n", MSG_DISCONN);
         CLOSE_SOCK(fd);
     }

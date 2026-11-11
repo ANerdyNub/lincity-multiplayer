@@ -29,7 +29,7 @@ void pixmap_setpixel (int x, int y, int col);
 void pixmap_hline (int x1, int y1, int x2, int col);
 void pixmap_vline (int x1, int y1, int y2, int col);
 void pixmap_fillbox (int x, int y, int w, int h, int col);
-void pixmap_putbox (char* src, int src_x, int src_y, int src_w,
+void pixmap_putbox (unsigned char* src, int src_x, int src_y, int src_w,
 		    int dst_x, int dst_y, int w, int h);
 void free_pixmap (void);
 

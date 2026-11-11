@@ -441,7 +441,7 @@ pixmap_fillbox (int x, int y, int w, int h, int col)
 }
 
 void
-pixmap_putbox (char* src, int src_x, int src_y, int src_w,
+pixmap_putbox (unsigned char* src, int src_x, int src_y, int src_w,
 	       int dst_x, int dst_y, int w, int h)
 {
     int x, y;

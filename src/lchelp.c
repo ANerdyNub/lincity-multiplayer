@@ -324,12 +324,15 @@ draw_help_page (char *helppage)
 	}
 
 	/* Open the file */
-	sprintf (helppage_full, "%s%s", help_path, helppage);
+	snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
+		  + strlen(helppage) + 2, "%s%s", help_path, helppage);
 	if ((inf = fopen (helppage_full, "r")) == 0) {
-	    sprintf (helppage_full, "%s%c%s", lc_save_dir, 
+	    snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
+		      + strlen(helppage) + 2, "%s%c%s", lc_save_dir,
 		     PATH_SLASH, helppage);
 	    if ((inf = fopen (helppage_full, "r")) == 0) {
-		sprintf (helppage_full, "%s%s", help_path, HELPERRORPAGE);
+		snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
+			  + strlen(helppage) + 2, "%s%s", help_path, HELPERRORPAGE);
 		if ((inf = fopen (helppage_full, "r")) == 0)
 		    do_error ("Help error");
 	    }
@@ -351,7 +354,7 @@ draw_help_page (char *helppage)
 	    parse_helpline ("tcolour 0 255");
 	    y = 100;
 	    for (i = 0; i < askdir_lines; i++) {
-		sprintf (help_line, "text -1 %d %s", y, askdir_path[i]);
+		snprintf (help_line, sizeof(help_line), "text -1 %d %s", y, askdir_path[i]);
 		parse_helpline (help_line);
 		y += 14;
 	    }
@@ -411,7 +414,7 @@ parse_tcolourline (char *st)
 {
   char s[100];
   int f, b;
-  strcpy (s, st);		/* hpux fix?  we can live with this. */
+  snprintf (s, sizeof(s), "%s", st);	/* hpux fix?  we can live with this. */
 
   sscanf (s, "tcolour %d %d", &f, &b);
   if (f < 0 || b < 0)
@@ -500,8 +503,7 @@ draw_help_icon (int x, int y, char *icon)
     int i, l, w, h;
     char ss[LC_PATH_MAX];
     FILE *inf;
-    strcpy (ss, graphic_path);
-    strcat (ss, icon);
+    snprintf (ss, sizeof(ss), "%s%s", graphic_path, icon);
     if ((inf = fopen (ss, "rb")) == NULL) {
 	return;
     }
@@ -620,9 +622,9 @@ parse_tbuttonline (char *st)
 {
     char s[100], ss[120], s1[100];
     int i, j, x, y;
-    strcpy (s1, st);		/* hpux fix?  we can live with this. */
+    snprintf (s1, sizeof(s1), "%s", st);	/* hpux fix?  we can live with this. */
 
-    sscanf (s1, "tbutton %d %d %s", &x, &y, s);
+    sscanf (s1, "tbutton %d %d %99s", &x, &y, s);
     /* find start of string */
     i = 0;
     for (j = 0; j < 4; j++) {
@@ -644,9 +646,9 @@ parse_tbuttonline (char *st)
     if (x < 0)
 	x -= 2;			/* needed to keep text centred */
 
-    sprintf (ss, "text %d %d ", x + 2, y + 2);
-    strcat (ss, st);
+    snprintf (ss, sizeof(ss), "text %d %d ", x + 2, y + 2);
+    strncat (ss, st, sizeof(ss) - strlen(ss) - 1);
     parse_textline (ss);
-    sprintf (ss, "button %d %d %d %d %s", x, y, (strlen (st) * 8) + 4, 12, s);
+    snprintf (ss, sizeof(ss), "button %d %d %zu %d %s", x, y, (strlen (st) * 8) + 4, 12, s);
     parse_buttonline (ss);
 }

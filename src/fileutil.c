@@ -38,6 +38,11 @@ void HandleError (char *, int);
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <zlib.h>
+
+#if !defined (WIN32)
+#include <pwd.h>
+#endif
 
 #if defined (TIME_WITH_SYS_TIME)
 #include <time.h>
@@ -176,7 +181,8 @@ execute_command (char *cmd, char *p1, char *p2, char *p3)
   if (sys_cmd == 0) {
     malloc_failure ();
   }
-  sprintf (sys_cmd, "%s %s %s %s", cmd, p1, p2, p3);
+  snprintf (sys_cmd, strlen (cmd) + strlen (p1) + strlen (p2) + strlen (p3) + 4,
+	    "%s %s %s %s", cmd, p1, p2, p3);
   ret_value = system (sys_cmd);
 /* fprintf(stderr, "system(%s)=%i\n", sys_cmd, ret_value); */
   free (sys_cmd);
@@ -195,64 +201,58 @@ copy_file (char *f1, char *f2)
     }
 }
 
-void
-gunzip_file (char *f1, char *f2)
-{
-  int ret_value = execute_command ("gzip -c -d", f1, ">", f2);
-  if (ret_value != 0)
-    {
-      /* GCS FIX:  Need to make do_error into var_args fn? */
-      printf ("Tried to gzip -c -d %s > %s\n", f1, f2);
-      do_error ("Can't gunzip requested file");
-    }
-}
-
+/*
+ * Return a stdio stream for a save file.  gzread() accepts both gzip and
+ * transparent (uncompressed) streams, so old saves continue to load.  The
+ * decompressed bytes are staged in an anonymous tmpfile because load_city()
+ * and the splash loader use fscanf/fgets/fgetc on the result.
+ */
 FILE* 
 fopen_read_gzipped (char* fn)
 {
+    gzFile gz;
     FILE* fp;
+    char buf[16384];
+    int n;
 
-#if defined (HAVE_GZIP) && defined (HAVE_POPEN)
-#ifdef __EMX__
-    const char* cmd_str = "gzip -d -c < %s 2> nul";
-#else
-    const char* cmd_str = "gzip -d -c < %s 2> /dev/null";
-#endif
-    char *cmd = (char*) malloc (strlen (cmd_str) + strlen (fn) + 1);
-    
-    sprintf (cmd, cmd_str, fn);
-#ifdef __EMX__
-    fp=popen(cmd,"rb");
-#else
-    fp=popen(cmd,"r");
-#endif
-    if (fp==NULL) {
-       fprintf(stderr, "Failed to open pipe cmd: %s\n", cmd);
+    gz = gzopen (fn, "rb");
+    if (gz == NULL) {
+	fprintf (stderr, "Failed to open save file: %s\n", fn);
+	return NULL;
     }
-    free(cmd);
-
-#elif defined (HAVE_GZIP) && !defined (HAVE_POPEN)
-    gunzip_file (fn, lc_temp_filename);
-    fp = fopen (lc_temp_filename, "rb");
-
-#else /* No gzip */
-    fp = fopen (fn, "rb");
-#endif
-
+    fp = tmpfile ();
+    if (fp == NULL) {
+	fprintf (stderr, "Failed to create a save-file staging stream\n");
+	gzclose (gz);
+	return NULL;
+    }
+    while ((n = gzread (gz, buf, sizeof buf)) > 0) {
+	if (fwrite (buf, 1, (size_t) n, fp) != (size_t) n) {
+	    fprintf (stderr, "Failed to stage save file: %s\n", fn);
+	    fclose (fp);
+	    gzclose (gz);
+	    return NULL;
+	}
+    }
+    if (n < 0) {
+	fprintf (stderr, "Failed to read gzip save file: %s\n", fn);
+	fclose (fp);
+	gzclose (gz);
+	return NULL;
+    }
+    if (gzclose (gz) != Z_OK || fseek (fp, 0L, SEEK_SET) != 0) {
+	fprintf (stderr, "Failed to finish reading save file: %s\n", fn);
+	fclose (fp);
+	return NULL;
+    }
     return fp;
 }
 
 void 
 fclose_read_gzipped (FILE* fp)
 {
-#if defined (HAVE_GZIP) && defined (HAVE_POPEN)
-    pclose (fp);
-#elif defined (HAVE_GZIP) && !defined (HAVE_POPEN)
-    fclose (fp);
-    remove (lc_temp_filename);
-#else
-    fclose (fp);
-#endif
+    if (fp != NULL)
+	fclose (fp);
 }
 
 int
@@ -313,7 +313,7 @@ find_libdir (void)
 	    snprintf (LIBDIR, LC_PATH_MAX, "%s\\%s", exe_path, searchfile);
 	    if (_access (LIBDIR, 0) != -1) {
 		*p = '\0';
-		strncpy (LIBDIR, exe_path, LC_PATH_MAX);
+		snprintf (LIBDIR, LC_PATH_MAX, "%s", exe_path);
 		return;
 	    }
 	}
@@ -327,7 +327,7 @@ find_libdir (void)
 
     /* Check 4: default location */
     if ((_access (default_dir, 0)) != -1) {
-	strcpy (LIBDIR, default_dir);
+	snprintf (LIBDIR, sizeof(LIBDIR), "%s", default_dir);
 	return;
     }
 
@@ -357,7 +357,7 @@ find_libdir (void)
 	snprintf (filename_buf, LC_PATH_MAX, "%s%c%s", 
 		  home_dir, PATH_SLASH, searchfile);
 	if (file_exists(filename_buf)) {
-	    strncpy (LIBDIR, home_dir, LC_PATH_MAX);
+	    snprintf (LIBDIR, LC_PATH_MAX, "%s", home_dir);
 	    return;
 	}
     }
@@ -368,7 +368,7 @@ find_libdir (void)
 	snprintf (filename_buf, LC_PATH_MAX, "%s%c%s", 
 		  cwd_buf, PATH_SLASH, searchfile);
 	if (file_exists(filename_buf)) {
-	    strncpy (LIBDIR, cwd_buf, LC_PATH_MAX);
+	    snprintf (LIBDIR, LC_PATH_MAX, "%s", cwd_buf);
 	    return;
 	}
     }
@@ -377,7 +377,7 @@ find_libdir (void)
     snprintf (filename_buf, LC_PATH_MAX, "%s%c%s", 
 	      DEFAULT_LIBDIR, PATH_SLASH, searchfile);
     if (file_exists(filename_buf)) {
-	strncpy (LIBDIR, DEFAULT_LIBDIR, LC_PATH_MAX);
+	snprintf (LIBDIR, LC_PATH_MAX, "%s", DEFAULT_LIBDIR);
 	return;
     }
 
@@ -463,14 +463,14 @@ find_localized_paths (void)
 #endif
   debug_printf ("GUESS 1 -- intl_suffix is %s\n", intl_suffix);
   if (strcmp(intl_suffix,"C") && strcmp(intl_suffix,"")) {
-    sprintf (message_path, "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "messages",
+    snprintf (message_path, sizeof(message_path), "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "messages",
 	     PATH_SLASH, intl_suffix, PATH_SLASH);
     debug_printf ("Trying Message Path %s\n", message_path);
     if (directory_exists(message_path)) {
       debug_printf ("Set Message Path %s\n", message_path);
       messages_done = 1;
     }
-    sprintf (help_path, "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "help",
+    snprintf (help_path, sizeof(help_path), "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "help",
 	     PATH_SLASH, intl_suffix, PATH_SLASH);
     debug_printf ("Trying Help Path %s\n", help_path);
     if (directory_exists(help_path)) {
@@ -488,7 +488,7 @@ find_localized_paths (void)
   debug_printf ("GUESS 2 -- intl_suffix is %s\n", intl_suffix);
   if (strcmp(intl_suffix,"C") && strcmp(intl_suffix,"")) {
     if (!messages_done) {
-      sprintf (message_path, "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "messages",
+      snprintf (message_path, sizeof(message_path), "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "messages",
 	       PATH_SLASH, intl_suffix, PATH_SLASH);
       debug_printf ("Trying Message Path %s\n", message_path);
       if (directory_exists(message_path)) {
@@ -497,7 +497,7 @@ find_localized_paths (void)
       }
     }
     if (!help_done) {
-      sprintf (help_path, "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "help",
+      snprintf (help_path, sizeof(help_path), "%s%c%s%c%s%c", LIBDIR, PATH_SLASH, "help",
 	       PATH_SLASH, intl_suffix, PATH_SLASH);
       debug_printf ("Trying Help Path %s\n", help_path);
       if (directory_exists(help_path)) {
@@ -510,12 +510,12 @@ find_localized_paths (void)
     
   /* Finally, settle for default English messages */
   if (!messages_done) {
-    sprintf (message_path, "%s%c%s%c", LIBDIR, PATH_SLASH, "messages",
+    snprintf (message_path, sizeof(message_path), "%s%c%s%c", LIBDIR, PATH_SLASH, "messages",
 	     PATH_SLASH);
     debug_printf ("Settling for message Path %s\n", message_path);
   }
   if (!help_done) {
-    sprintf (help_path, "%s%c%s%c", LIBDIR, PATH_SLASH, "help",
+    snprintf (help_path, sizeof(help_path), "%s%c%s%c", LIBDIR, PATH_SLASH, "help",
 	     PATH_SLASH);
     debug_printf ("Settling for help Path %s\n", help_path);
   }
@@ -533,38 +533,44 @@ init_path_strings (void)
 
 #if defined (WIN32)
     homedir = LIBDIR;
-#elif defined (__EMX__)
-    homedir = getenv ("HOME");
 #else
     homedir = getenv ("HOME");
+    if (homedir == NULL || homedir[0] == '\0')
+    {
+	struct passwd *pw = getpwuid (getuid ());
+	if (pw != NULL && pw->pw_dir != NULL && pw->pw_dir[0] != '\0')
+	    homedir = pw->pw_dir;
+    }
+    if (homedir == NULL || homedir[0] == '\0')
+	do_error (_("HOME is not set and no home directory was found for this user"));
 #endif
 
     /* Various dirs and files */
     lc_save_dir_len = strlen (homedir) + strlen (LC_SAVE_DIR) + 1;
     if ((lc_save_dir = (char *) malloc (lc_save_dir_len + 1)) == 0)
 	malloc_failure ();
-    sprintf (lc_save_dir, "%s%c%s", homedir, PATH_SLASH, LC_SAVE_DIR);
-    sprintf (colour_pal_file, "%s%c%s", LIBDIR, PATH_SLASH, "colour.pal");
-    sprintf (opening_path, "%s%c%s", LIBDIR, PATH_SLASH, "opening");
+    snprintf (lc_save_dir, lc_save_dir_len + 1, "%s%c%s", homedir, PATH_SLASH, LC_SAVE_DIR);
+    snprintf (colour_pal_file, sizeof(colour_pal_file), "%s%c%s", LIBDIR, PATH_SLASH, "colour.pal");
+    snprintf (opening_path, sizeof(opening_path), "%s%c%s", LIBDIR, PATH_SLASH, "opening");
 #if defined (WIN32)
-    sprintf (opening_pic, "%s%c%s",opening_path,PATH_SLASH,"open.tga");
+    snprintf (opening_pic, sizeof(opening_pic), "%s%c%s",opening_path,PATH_SLASH,"open.tga");
 #else
-    sprintf (opening_pic, "%s%c%s",opening_path,PATH_SLASH,"open.tga.gz");
+    snprintf (opening_pic, sizeof(opening_pic), "%s%c%s",opening_path,PATH_SLASH,"open.tga.gz");
 #endif
-    sprintf (graphic_path, "%s%c%s%c", LIBDIR, PATH_SLASH, "icons",
+    snprintf (graphic_path, sizeof(graphic_path), "%s%c%s%c", LIBDIR, PATH_SLASH, "icons",
 	     PATH_SLASH);
-    sprintf (lincityrc_file, "%s%c%s", homedir, PATH_SLASH, 
+    snprintf (lincityrc_file, sizeof(lincityrc_file), "%s%c%s", homedir, PATH_SLASH, 
 	LINCITYRC_FILENAME);
 
     /* Paths for message & help files, etc */
     find_localized_paths ();
 
     /* Font stuff */
-    sprintf (fontfile, "%s%c%s", opening_path, PATH_SLASH,
+    snprintf (fontfile, sizeof(fontfile), "%s%c%s", opening_path, PATH_SLASH,
 	     "iso8859-1-8x8.raw");
 #if defined (WIN32)
     /* GCS: Use windows font for extra speed */
-    strcpy (windowsfontfile, LIBDIR);
+    snprintf (windowsfontfile, LC_PATH_MAX, "%s", LIBDIR);
 #if defined (commentout)
     if (!pix_double)
 	strcat (windowsfontfile, "\\opening\\iso8859-1-8x8.fnt");
@@ -572,9 +578,13 @@ init_path_strings (void)
 	strcat (windowsfontfile, "\\opening\\iso8859-1-9x15.fnt");
 #endif
     if (!pix_double)
-	strcat (windowsfontfile, "\\opening\\winfont_8x8.fnt");
+	snprintf (windowsfontfile + strlen(windowsfontfile),
+		  LC_PATH_MAX - strlen(windowsfontfile),
+		  "%s", "\\opening\\winfont_8x8.fnt");
     else
-	strcat (windowsfontfile, "\\opening\\winfont_16x16.fnt");
+	snprintf (windowsfontfile + strlen(windowsfontfile),
+		  LC_PATH_MAX - strlen(windowsfontfile),
+		  "%s", "\\opening\\winfont_16x16.fnt");
 #endif
 
     /* Temp file for results */
@@ -582,12 +592,12 @@ init_path_strings (void)
     if (lc_temp_filename == 0) {
 	malloc_failure ();
     }
-    sprintf (lc_temp_filename, "%s%c%s", lc_save_dir, PATH_SLASH, "tmp-file");
+    snprintf (lc_temp_filename, lc_save_dir_len + 16, "%s%c%s", lc_save_dir, PATH_SLASH, "tmp-file");
 
     /* Path for localization */
 #if defined (ENABLE_NLS)
 #if defined (WIN32)
-    sprintf (lc_textdomain_directory, "%s%c%s", LIBDIR, PATH_SLASH, "locale");
+    snprintf (lc_textdomain_directory, sizeof(lc_textdomain_directory), "%s%c%s", LIBDIR, PATH_SLASH, "locale");
 #else
     strcpy (lc_textdomain_directory, LOCALEDIR);
 #endif
@@ -684,24 +694,41 @@ malloc_failure (void)
 char*
 load_graphic(char *s)
 {
-    int x,l;
-    char ss[LC_PATH_MAX],*graphic;
+    int l;
+    char ss[LC_PATH_MAX], *graphic = NULL;
     FILE *inf;
-    strcpy(ss,graphic_path);
-    strcat(ss,s);
-    if ((inf=fopen(ss,"rb"))==NULL)
+
+    if (strlen (graphic_path) + strlen (s) >= sizeof ss)
+	do_error ("graphic path too long");
+    snprintf (ss, sizeof ss, "%s%s", graphic_path, s);
+    if ((inf = fopen (ss, "rb")) == NULL)
     {
-	strcat(ss," -- UNABLE TO LOAD");
-	do_error(ss);
+	snprintf (ss, sizeof ss, "%s%s -- UNABLE TO LOAD", graphic_path, s);
+	do_error (ss);
     }
-    fseek(inf,0L,SEEK_END);
-    l=ftell(inf);
-    fseek(inf,0L,SEEK_SET);
-    graphic=(char *)malloc(l);
-    for (x=0;x<l;x++)
-	*(graphic+x)=fgetc(inf);
-    fclose(inf);
-    return(graphic);
+    if (fseek (inf, 0L, SEEK_END) != 0
+	|| (l = ftell (inf)) <= 0
+	|| fseek (inf, 0L, SEEK_SET) != 0)
+    {
+	fclose (inf);
+	snprintf (ss, sizeof ss, "%s%s -- INVALID GRAPHIC", graphic_path, s);
+	do_error (ss);
+    }
+    graphic = (char *) malloc ((size_t) l);
+    if (graphic == NULL)
+    {
+	fclose (inf);
+	malloc_failure ();
+    }
+    if (fread (graphic, 1, (size_t) l, inf) != (size_t) l)
+    {
+	free (graphic);
+	fclose (inf);
+	snprintf (ss, sizeof ss, "%s%s -- UNABLE TO READ", graphic_path, s);
+	do_error (ss);
+    }
+    fclose (inf);
+    return graphic;
 }
 
 void

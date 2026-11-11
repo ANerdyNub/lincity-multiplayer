@@ -10,6 +10,7 @@
 #include "common.h"
 #include "lctypes.h"
 #include "lin-city.h"
+#include "validation.h"
 #include "typeinit.h"
 #include "cliglobs.h"
 #include "engglobs.h"
@@ -30,7 +31,11 @@ set_mappoint (int x, int y, short selected_type)
 {
   int grp;
 
-  if ((grp = get_group_of_type(selected_type)) < 0) return;
+  if (!type_ok (selected_type) || !map_coord_ok (x, y)) return;
+  grp = get_group_of_type (selected_type);
+  if (!group_ok (grp)) return;
+  if (!map_rect_ok (x, y, main_groups[grp].size, main_groups[grp].size))
+    return;
 
   MP_TYPE(x,y) = selected_type;
   MP_GROUP(x,y) = grp;
@@ -116,15 +121,20 @@ connect_transport (int originx, int originy, int w, int h)
     CST_WATER_LU, CST_WATER_LUD, CST_WATER_LUR, CST_WATER_LURD
   };
 
-  /* Adjust originx,originy,w,h to proper range */
-  if (originx <= 0) {
-    w -= 1 - originx;
-    originx = 1;
+  /* Adjust originx,originy,w,h to proper range.  Row/column 0 are valid
+     map cells; only a negative origin needs to be clipped. */
+  if (originx < 0) {
+    w += originx;
+    originx = 0;
   }
-  if (originy <= 0) {
-    h -= 1 - originy;
-    originy = 1;
+  if (originy < 0) {
+    h += originy;
+    originy = 0;
   }
+  if (w < 0)
+    w = 0;
+  if (h < 0)
+    h = 0;
   if (originx + w >= WORLD_SIDE_LEN) {
     w = WORLD_SIDE_LEN - originx;
   }
@@ -140,9 +150,7 @@ connect_transport (int originx, int originy, int w, int h)
 	  /* First, set up a mask indicating into which directions 
 	     power may be transferred */
 	  mask = 0;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y > 0)
-#endif
 	    {		/* up -- (ThMO) */
 	      group = MP_GROUP(x,y-1);
 
@@ -163,9 +171,7 @@ connect_transport (int originx, int originy, int w, int h)
 		  break;
 		}
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x > 0)
-#endif
 	    {		/* left -- (ThMO) */
 	      group = MP_GROUP(x-1,y);
 	      if (x > 1 && (group == GROUP_TRACK
@@ -183,9 +189,7 @@ connect_transport (int originx, int originy, int w, int h)
 		  break;
 		}
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x < WORLD_SIDE_LEN - 1)
-#endif
 	    {		/* right -- (ThMO) */
 	      group = MP_GROUP(x+1,y);
 	      if (x < WORLD_SIDE_LEN - 2 && (group == GROUP_TRACK
@@ -206,9 +210,7 @@ connect_transport (int originx, int originy, int w, int h)
 		  break;
 		}
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y < WORLD_SIDE_LEN - 1)
-#endif
 	    {		/* down -- (ThMO) */
 	      group = MP_GROUP(x,y+1);
 	      if (y < WORLD_SIDE_LEN - 2 && (group == GROUP_TRACK
@@ -245,24 +247,18 @@ connect_transport (int originx, int originy, int w, int h)
 #error  this algorithm depends on proper flag settings -- (ThMO)
 #endif
 	  mask = 0;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y > 0)
-#endif
 	    {
 	      if (MP_GROUP(x,y-1) == GROUP_TRACK)
 		mask |= FLAG_UP;
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x > 0)
-#endif
 	    {
 	      if (MP_GROUP(x-1,y) == GROUP_TRACK)
 		mask |= FLAG_LEFT;
 	    }
 	  tflags = mask;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x < WORLD_SIDE_LEN - 1)
-#endif
 	    {
 	      switch (MP_GROUP(x+1,y))
 		{
@@ -279,17 +275,13 @@ connect_transport (int originx, int originy, int w, int h)
 		  mask |= FLAG_RIGHT;
 		  break;
 		default:
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 		  if (y > 0)
-#endif
 		    if (MP_GROUP(x+1,y-1) == GROUP_COAL_POWER)
 		      mask |= FLAG_RIGHT;
 		  break;
 		}
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y < WORLD_SIDE_LEN - 1)
-#endif
 	    {
 	      switch (MP_GROUP(x,y+1))
 		{
@@ -306,9 +298,7 @@ connect_transport (int originx, int originy, int w, int h)
 		  mask |= FLAG_DOWN;
 		  break;
 		default:
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 		  if (x > 0)
-#endif
 		    if (MP_GROUP(x-1,y+1) == GROUP_COAL_POWER)
 		      mask |= FLAG_DOWN;
 		  break;
@@ -326,24 +316,18 @@ connect_transport (int originx, int originy, int w, int h)
 #error  this algorithm depends on proper flag settings -- (ThMO)
 #endif
 	  mask = 0;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y > 0)
-#endif
 	    {
 	      if (MP_GROUP(x,y-1) == GROUP_ROAD)
 		mask |= FLAG_UP;
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x > 0)
-#endif
 	    {
 	      if (MP_GROUP(x-1,y) == GROUP_ROAD)
 		mask |= FLAG_LEFT;
 	    }
 	  tflags = mask;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x < WORLD_SIDE_LEN - 1)
-#endif
 	    {
 	      switch (MP_GROUP(x+1,y))
 		{
@@ -360,17 +344,13 @@ connect_transport (int originx, int originy, int w, int h)
 		  mask |= FLAG_RIGHT;
 		  break;
 		default:
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 		  if (y > 0)
-#endif
 		    if (MP_GROUP(x+1,y-1) == GROUP_COAL_POWER)
 		      mask |= FLAG_RIGHT;
 		  break;
 		}
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y < WORLD_SIDE_LEN - 1)
-#endif
 	    {
 	      switch (MP_GROUP(x,y+1))
 		{
@@ -387,9 +367,7 @@ connect_transport (int originx, int originy, int w, int h)
 		  mask |= FLAG_DOWN;
 		  break;
 		default:
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 		  if (x > 0)
-#endif
 		    if (MP_GROUP(x-1,y+1) == GROUP_COAL_POWER)
 		      mask |= FLAG_DOWN;
 		  break;
@@ -407,24 +385,18 @@ connect_transport (int originx, int originy, int w, int h)
 #error  this algorithm depends on proper flag settings -- (ThMO)
 #endif
 	  mask = 0;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y > 0)
-#endif
 	    {
 	      if (MP_GROUP(x,y-1) == GROUP_RAIL)
 		mask |= FLAG_UP;
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x > 0)
-#endif
 	    {
 	      if (MP_GROUP(x-1,y) == GROUP_RAIL)
 		mask |= FLAG_LEFT;
 	    }
 	  tflags = mask;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x < WORLD_SIDE_LEN - 1)
-#endif
 	    {
 	      switch (MP_GROUP(x+1,y))
 		{
@@ -441,17 +413,13 @@ connect_transport (int originx, int originy, int w, int h)
 		  mask |= FLAG_RIGHT;
 		  break;
 		default:
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 		  if (y > 0)
-#endif
 		    if (MP_GROUP(x+1,y-1) == GROUP_COAL_POWER)
 		      mask |= FLAG_RIGHT;
 		  break;
 		}
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y < WORLD_SIDE_LEN - 1)
-#endif
 	    {
 	      switch (MP_GROUP(x,y + 1))
 		{
@@ -468,9 +436,7 @@ connect_transport (int originx, int originy, int w, int h)
 		  mask |= FLAG_DOWN;
 		  break;
 		default:
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 		  if (x > 0)
-#endif
 		    if (MP_GROUP(x - 1,y + 1)
 			== GROUP_COAL_POWER)
 		      mask |= FLAG_DOWN;
@@ -485,17 +451,13 @@ connect_transport (int originx, int originy, int w, int h)
 
 	case GROUP_WATER:
 	  mask = 0;
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y > 0)
-#endif
 	    {		/* up -- (ThMO) */
 	      if (MP_GROUP(x,y - 1)
 		  == GROUP_WATER)
 		mask |= 8;
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x > 0)
-#endif
 	    {		/* left -- (ThMO) */
 	      type = MP_TYPE(x - 1,y);
 	      if ((type == CST_USED && 
@@ -504,17 +466,13 @@ connect_transport (int originx, int originy, int w, int h)
 		  || get_group_of_type(type) == GROUP_WATER)
 		mask |= 4;
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (x < WORLD_SIDE_LEN - 1)
-#endif
 	    {		/* right -- (ThMO) */
 	      if (MP_GROUP(x + 1,y)
 		  == GROUP_WATER)
 		mask |= 2;
 	    }
-#ifdef	THOMMY_MAY_BE_WRONG	/* just in case -- (ThMO) */
 	  if (y < WORLD_SIDE_LEN - 1)
-#endif
 	    {		/* down -- (ThMO) */
 	      if (MP_GROUP(x,y + 1)
 		  == GROUP_WATER)

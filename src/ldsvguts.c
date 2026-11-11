@@ -6,12 +6,14 @@
 #include "lcconfig.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <zlib.h>
 #include "lcstring.h"
 #include "lcintl.h"
 #include "screen.h"
 #include "mouse.h"
 #include "module_buttons.h"
 #include "stats.h"
+#include "save_parse.h"
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -68,6 +70,7 @@
 #include "power.h"
 #include "pbar.h"
 #include "stats.h"
+#include "validation.h"
 
 #if defined (WIN32) && !defined (NDEBUG)
 #define START_FAST_SPEED 1
@@ -106,7 +109,7 @@ remove_scene (char *cname)
 
     if ((s = (char *) malloc (lc_save_dir_len + l + 16)) == 0)
 	malloc_failure ();
-    sprintf (s, "%s%c%s", lc_save_dir, PATH_SLASH, cname);
+    snprintf (s, lc_save_dir_len + l + 16, "%s%c%s", lc_save_dir, PATH_SLASH, cname);
     remove (s);
     free (s);
 }
@@ -114,201 +117,222 @@ remove_scene (char *cname)
 void
 save_city_raw (char *cname)
 {
-    int x, y, z, q, n, p;
-#if defined (WIN32)
-    FILE *ofile = fopen (cname, "wb");
-#else
-    FILE *ofile = fopen (cname, "w");
-#endif
+    int x, y, z, n, p;
+    gzFile ofile = gzopen (cname, "wb");
     if (ofile == NULL) {
 	printf (_("Save file <%s> - "), cname);
 	do_error (_("Can't open save file!"));
     }
 
-    fprintf (ofile, "%d\n", (int) VERSION_INT);
-    q = sizeof (Map_Point_Info);
+    gzprintf (ofile, "%d\n", (int) VERSION_INT);
     prog_box (_("Saving scene"), 0);
     check_endian ();
     for (x = 0; x < WORLD_SIDE_LEN; x++) {
 	for (y = 0; y < WORLD_SIDE_LEN; y++) {
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).population) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).flags) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(unsigned short); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).coal_reserve) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(unsigned short); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).ore_reserve) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).int_1) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).int_2) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).int_3) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).int_4) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).int_5) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).int_6) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
 	    for (z = 0; z < sizeof(int); z++) {
 		n = *(((unsigned char *) &MP_INFO(x,y).int_7) + z);
-		fprintf (ofile, "%d\n", n);
+		gzprintf (ofile, "%d\n", n);
 	    }
-	    fprintf (ofile, "%d\n", (int) MP_POL(x,y));
-	    fprintf (ofile, "%d\n", (int) MP_TYPE(x,y));
+	    gzprintf (ofile, "%d\n", (int) MP_POL(x,y));
+	    gzprintf (ofile, "%d\n", (int) MP_TYPE(x,y));
 	}
 	prog_box ("", (90 * x) / WORLD_SIDE_LEN);
     }
     check_endian ();		/* we have to put the byte order back. */
 
-    fprintf (ofile, "%d\n", main_screen_originx);
-    fprintf (ofile, "%d\n", main_screen_originy);
-    fprintf (ofile, "%d\n", total_time);
+    gzprintf (ofile, "%d\n", main_screen_originx);
+    gzprintf (ofile, "%d\n", main_screen_originy);
+    gzprintf (ofile, "%d\n", total_time);
     for (x = 0; x < MAX_NUMOF_SUBSTATIONS; x++)
     {
-	fprintf (ofile, "%d\n", substationx[x]);
-	fprintf (ofile, "%d\n", substationy[x]);
+	gzprintf (ofile, "%d\n", substationx[x]);
+	gzprintf (ofile, "%d\n", substationy[x]);
     }
     prog_box ("", 92);
-    fprintf (ofile, "%d\n", numof_substations);
+    gzprintf (ofile, "%d\n", numof_substations);
     for (x = 0; x < MAX_NUMOF_MARKETS; x++)
     {
-	fprintf (ofile, "%d\n", marketx[x]);
-	fprintf (ofile, "%d\n", markety[x]);
+	gzprintf (ofile, "%d\n", marketx[x]);
+	gzprintf (ofile, "%d\n", markety[x]);
     }
     prog_box ("", 94);
-    fprintf (ofile, "%d\n", numof_markets);
-    fprintf (ofile, "%d\n", people_pool);
-    fprintf (ofile, "%d\n", total_money);
-    fprintf (ofile, "%d\n", income_tax_rate);
-    fprintf (ofile, "%d\n", coal_tax_rate);
-    fprintf (ofile, "%d\n", dole_rate);
-    fprintf (ofile, "%d\n", transport_cost_rate);
-    fprintf (ofile, "%d\n", goods_tax_rate);
-    fprintf (ofile, "%d\n", export_tax);
-    fprintf (ofile, "%d\n", export_tax_rate);
-    fprintf (ofile, "%d\n", import_cost);
-    fprintf (ofile, "%d\n", import_cost_rate);
-    fprintf (ofile, "%d\n", tech_level);
-    fprintf (ofile, "%d\n", tpopulation);
-    fprintf (ofile, "%d\n", tstarving_population);
-    fprintf (ofile, "%d\n", tunemployed_population);
-    fprintf (ofile, "%d\n", 0); /* waste_goods is obsolete */
-    fprintf (ofile, "%d\n", power_made);
-    fprintf (ofile, "%d\n", power_used);
-    fprintf (ofile, "%d\n", coal_made);
-    fprintf (ofile, "%d\n", coal_used);
-    fprintf (ofile, "%d\n", goods_made);
-    fprintf (ofile, "%d\n", goods_used);
-    fprintf (ofile, "%d\n", ore_made);
-    fprintf (ofile, "%d\n", ore_used);
-    fprintf (ofile, "%d\n", 0); /* Removed diff_old_population, version 1.12 */
+    gzprintf (ofile, "%d\n", numof_markets);
+    gzprintf (ofile, "%d\n", people_pool);
+    gzprintf (ofile, "%d\n", total_money);
+    gzprintf (ofile, "%d\n", income_tax_rate);
+    gzprintf (ofile, "%d\n", coal_tax_rate);
+    gzprintf (ofile, "%d\n", dole_rate);
+    gzprintf (ofile, "%d\n", transport_cost_rate);
+    gzprintf (ofile, "%d\n", goods_tax_rate);
+    gzprintf (ofile, "%d\n", export_tax);
+    gzprintf (ofile, "%d\n", export_tax_rate);
+    gzprintf (ofile, "%d\n", import_cost);
+    gzprintf (ofile, "%d\n", import_cost_rate);
+    gzprintf (ofile, "%d\n", tech_level);
+    gzprintf (ofile, "%d\n", tpopulation);
+    gzprintf (ofile, "%d\n", tstarving_population);
+    gzprintf (ofile, "%d\n", tunemployed_population);
+    gzprintf (ofile, "%d\n", 0); /* waste_goods is obsolete */
+    gzprintf (ofile, "%d\n", power_made);
+    gzprintf (ofile, "%d\n", power_used);
+    gzprintf (ofile, "%d\n", coal_made);
+    gzprintf (ofile, "%d\n", coal_used);
+    gzprintf (ofile, "%d\n", goods_made);
+    gzprintf (ofile, "%d\n", goods_used);
+    gzprintf (ofile, "%d\n", ore_made);
+    gzprintf (ofile, "%d\n", ore_used);
+    gzprintf (ofile, "%d\n", 0); /* Removed diff_old_population, version 1.12 */
 
     prog_box ("", 96);
     /* Changed, version 1.12 */
-    fprintf (ofile, "%d\n", monthgraph_size);
+    gzprintf (ofile, "%d\n", monthgraph_size);
     for (x = 0; x < monthgraph_size; x++) {
-	fprintf (ofile, "%d\n", monthgraph_pop[x]);
-	fprintf (ofile, "%d\n", monthgraph_starve[x]);
-	fprintf (ofile, "%d\n", monthgraph_nojobs[x]);
-	fprintf (ofile, "%d\n", monthgraph_ppool[x]);
+	gzprintf (ofile, "%d\n", monthgraph_pop[x]);
+	gzprintf (ofile, "%d\n", monthgraph_starve[x]);
+	gzprintf (ofile, "%d\n", monthgraph_nojobs[x]);
+	gzprintf (ofile, "%d\n", monthgraph_ppool[x]);
 #if defined (commentout)
-	fprintf (ofile, "%d\n", diffgraph_power[x]);
-	fprintf (ofile, "%d\n", diffgraph_coal[x]);
-	fprintf (ofile, "%d\n", diffgraph_goods[x]);
-	fprintf (ofile, "%d\n", diffgraph_ore[x]);
-	fprintf (ofile, "%d\n", diffgraph_population[x]);
+	gzprintf (ofile, "%d\n", diffgraph_power[x]);
+	gzprintf (ofile, "%d\n", diffgraph_coal[x]);
+	gzprintf (ofile, "%d\n", diffgraph_goods[x]);
+	gzprintf (ofile, "%d\n", diffgraph_ore[x]);
+	gzprintf (ofile, "%d\n", diffgraph_population[x]);
 #endif
     }
     prog_box ("", 98);
-    fprintf (ofile, "%d\n", rockets_launched);
-    fprintf (ofile, "%d\n", rockets_launched_success);
-    fprintf (ofile, "%d\n", coal_survey_done);
+    gzprintf (ofile, "%d\n", rockets_launched);
+    gzprintf (ofile, "%d\n", rockets_launched_success);
+    gzprintf (ofile, "%d\n", coal_survey_done);
     for (x = 0; x < PBAR_DATA_SIZE; x++)
 	for (p = 0; p < NUM_PBARS; p++)
-	    fprintf(ofile, "%d\n", pbars[p].data[x]);
+	    gzprintf(ofile, "%d\n", pbars[p].data[x]);
 
     prog_box ("", 99);
 
     for (p = 0; p < NUM_PBARS; p++) {
-	fprintf(ofile, "%d\n", pbars[p].oldtot);
-	fprintf(ofile, "%d\n", pbars[p].diff);
+	gzprintf(ofile, "%d\n", pbars[p].oldtot);
+	gzprintf(ofile, "%d\n", pbars[p].diff);
     }
 
-    fprintf (ofile, "%d\n", cheat_flag);
-    fprintf (ofile, "%d\n", total_pollution_deaths);
-    fprintf (ofile, "%f\n", pollution_deaths_history);
-    fprintf (ofile, "%d\n", total_starve_deaths);
-    fprintf (ofile, "%f\n", starve_deaths_history);
-    fprintf (ofile, "%d\n", total_unemployed_years);
-    fprintf (ofile, "%f\n", unemployed_history);
-    fprintf (ofile, "%d\n", max_pop_ever);
-    fprintf (ofile, "%d\n", total_evacuated);
-    fprintf (ofile, "%d\n", total_births);
+    gzprintf (ofile, "%d\n", cheat_flag);
+    gzprintf (ofile, "%d\n", total_pollution_deaths);
+    gzprintf (ofile, "%f\n", pollution_deaths_history);
+    gzprintf (ofile, "%d\n", total_starve_deaths);
+    gzprintf (ofile, "%f\n", starve_deaths_history);
+    gzprintf (ofile, "%d\n", total_unemployed_years);
+    gzprintf (ofile, "%f\n", unemployed_history);
+    gzprintf (ofile, "%d\n", max_pop_ever);
+    gzprintf (ofile, "%d\n", total_evacuated);
+    gzprintf (ofile, "%d\n", total_births);
     for (x = 0; x < NUMOF_MODULES; x++)
-	fprintf (ofile, "%d\n", module_help_flag[x]);
-    fprintf (ofile, "%d\n", 0);	/* dummy values */
+	gzprintf (ofile, "%d\n", module_help_flag[x]);
+    gzprintf (ofile, "%d\n", 0);	/* dummy values */
 
-    fprintf (ofile, "%d\n", 0);	/* backward compatibility */
+    gzprintf (ofile, "%d\n", 0);	/* backward compatibility */
 
     if (strlen (given_scene) > 1)
-	fprintf (ofile, "%s\n", given_scene);
+	gzprintf (ofile, "%s\n", given_scene);
     else
-	fprintf (ofile, "dummy\n");	/* 1 */
+	gzprintf (ofile, "dummy\n");	/* 1 */
 
-    fprintf (ofile, "%d\n", highest_tech_level);	/* 2 */
+    gzprintf (ofile, "%d\n", highest_tech_level);	/* 2 */
 
-    fprintf (ofile, "sust %d %d %d %d %d %d %d %d %d %d\n"
+    gzprintf (ofile, "sust %d %d %d %d %d %d %d %d %d %d\n"
 	     ,sust_dig_ore_coal_count, sust_port_count
 	     ,sust_old_money_count, sust_old_population_count
 	     ,sust_old_tech_count, sust_fire_count
 	     ,sust_old_money, sust_old_population, sust_old_tech
 	     ,sustain_flag);	/* 3 */
 
-    fprintf (ofile, "dummy\n");	/* 4 */
+    gzprintf (ofile, "dummy\n");	/* 4 */
 
-    fprintf (ofile, "dummy\n");	/* 5 */
+    gzprintf (ofile, "dummy\n");	/* 5 */
 
-    fprintf (ofile, "dummy\n");	/* 6 */
+    gzprintf (ofile, "dummy\n");	/* 6 */
 
-    fprintf (ofile, "dummy\n");	/* 7 */
+    gzprintf (ofile, "dummy\n");	/* 7 */
 
-    fprintf (ofile, "dummy\n");	/* 8 */
+    gzprintf (ofile, "dummy\n");	/* 8 */
 
-    fprintf (ofile, "dummy\n");	/* 9 */
+    gzprintf (ofile, "dummy\n");	/* 9 */
 
-    fprintf (ofile, "dummy\n");	/* 10 */
+    gzprintf (ofile, "dummy\n");	/* 10 */
 
-    fclose (ofile);
+    if (gzclose (ofile) != Z_OK)
+	do_error ("Can't close save file!");
     prog_box ("", 100);
 }
 
+/* Write a gzip member to a sibling temp file and rename it into place.  This
+   keeps a failed write from destroying the previous scene and avoids putting
+   the user's path through a shell. */
+static void
+save_city_atomic (const char *cname, const char *tmp)
+{
+    save_city_raw ((char *) tmp);
+    if (rename (tmp, cname) != 0) {
+	remove (tmp);
+	do_error ("Can't replace the save file!");
+    }
+}
+
+void
+save_city_to_path (char *cname)
+{
+    size_t l = strlen (cname);
+    char *tmp = (char *) malloc (l + 8);
+
+    if (tmp == NULL)
+	malloc_failure ();
+    snprintf (tmp, l + 8, "%s.tmp", cname);
+    save_city_atomic (cname, tmp);
+    free (tmp);
+}
 
 void
 save_city (char *cname)
 {
-    char *s, *s2, *s3, *s4;
+    char *s, *s2;
     int l;
 
     if ((l = strlen (cname)) < 2)
@@ -317,181 +341,345 @@ save_city (char *cname)
 	malloc_failure ();
     if ((s2 = (char *) malloc (lc_save_dir_len + l + 32)) == 0)
 	malloc_failure ();
-    if ((s3 = (char *) malloc ((lc_save_dir_len + l) * 2 + 32)) == 0)
-	malloc_failure ();
-    if ((s4 = (char *) malloc ((lc_save_dir_len + l) * 2 + 32)) == 0)
-	malloc_failure ();
 
-    sprintf (s, "%s%c%s", lc_save_dir, PATH_SLASH, cname);
-    sprintf (s2, "%s%c%s", lc_save_dir, PATH_SLASH, "tmp-save");
-    sprintf (s3, "gzip -f %s", s2);
-    sprintf (s4, "mv %s.gz %s", s2, s);
-
-#if defined (WIN32)
-    save_city_raw (s);
-#else
-    save_city_raw (s2);
-    if (system (s3) != 0)
-	do_error ("gzip failed while in save_city");
-    if (system (s4) != 0)
-	do_error ("mv failed while in save_city");
-#endif
+    snprintf (s, lc_save_dir_len + l + 16, "%s%c%s", lc_save_dir, PATH_SLASH, cname);
+    snprintf (s2, lc_save_dir_len + l + 32, "%s%c%s", lc_save_dir, PATH_SLASH, "tmp-save");
+    save_city_atomic (s, s2);
 
     free (s);
     free (s2);
-    free (s3);
-    free (s4);
 }
 
-void
+#define LOAD_INT(dst) do { \
+    if (fscanf (ofile, "%d", &(dst)) != 1) goto load_corrupt; \
+} while (0)
+#define LOAD_FLOAT(dst) do { \
+    if (fscanf (ofile, "%f", &(dst)) != 1) goto load_corrupt; \
+} while (0)
+
+/* Everything outside the map that load_city() overwrites before it knows the
+   whole file is valid.  A truncated or invalid save must not leave the
+   running city with half of a new one. */
+struct load_scalar_backup
+{
+    int people_pool, total_money;
+    int income_tax_rate, coal_tax_rate, dole_rate, transport_cost_rate;
+    int goods_tax_rate, export_tax, export_tax_rate, import_cost;
+    int import_cost_rate, tech_level, highest_tech_level;
+    int modern_windmill_flag;
+    int tpopulation, tstarving_population, tunemployed_population;
+    int power_made, power_used, coal_made, coal_used;
+    int goods_made, goods_used, ore_made, ore_used;
+    int housed_population;
+    int monthgraph_size;
+    int *monthgraph_pop, *monthgraph_starve;
+    int *monthgraph_nojobs, *monthgraph_ppool;
+    int rockets_launched, rockets_launched_success, coal_survey_done;
+    struct pbar_st pbars[NUM_PBARS];
+    int cheat_flag, total_pollution_deaths, total_starve_deaths;
+    float pollution_deaths_history, starve_deaths_history;
+    int total_unemployed_years;
+    float unemployed_history;
+    int max_pop_ever, total_evacuated, total_births;
+    int module_help_flag[NUMOF_MODULES];
+    char given_scene[LC_PATH_MAX];
+    int sust_dig_ore_coal_tip_flag, sust_port_flag, sustain_flag;
+    int sust_dig_ore_coal_count, sust_port_count, sust_old_money;
+    int sust_old_money_count, sust_old_population, sust_old_population_count;
+    int sust_old_tech, sust_old_tech_count, sust_fire_count;
+};
+
+static void
+load_scalar_backup_save (struct load_scalar_backup *b)
+{
+    int n = monthgraph_size * (int) sizeof (int);
+
+    b->people_pool = people_pool;
+    b->total_money = total_money;
+    b->income_tax_rate = income_tax_rate;
+    b->coal_tax_rate = coal_tax_rate;
+    b->dole_rate = dole_rate;
+    b->transport_cost_rate = transport_cost_rate;
+    b->goods_tax_rate = goods_tax_rate;
+    b->export_tax = export_tax;
+    b->export_tax_rate = export_tax_rate;
+    b->import_cost = import_cost;
+    b->import_cost_rate = import_cost_rate;
+    b->tech_level = tech_level;
+    b->highest_tech_level = highest_tech_level;
+    b->modern_windmill_flag = modern_windmill_flag;
+    b->tpopulation = tpopulation;
+    b->tstarving_population = tstarving_population;
+    b->tunemployed_population = tunemployed_population;
+    b->power_made = power_made;
+    b->power_used = power_used;
+    b->coal_made = coal_made;
+    b->coal_used = coal_used;
+    b->goods_made = goods_made;
+    b->goods_used = goods_used;
+    b->ore_made = ore_made;
+    b->ore_used = ore_used;
+    b->housed_population = housed_population;
+    b->monthgraph_size = monthgraph_size;
+    b->monthgraph_pop = (int *) malloc (n);
+    b->monthgraph_starve = (int *) malloc (n);
+    b->monthgraph_nojobs = (int *) malloc (n);
+    b->monthgraph_ppool = (int *) malloc (n);
+    if (!b->monthgraph_pop || !b->monthgraph_starve
+	|| !b->monthgraph_nojobs || !b->monthgraph_ppool)
+	malloc_failure ();
+    memcpy (b->monthgraph_pop, monthgraph_pop, n);
+    memcpy (b->monthgraph_starve, monthgraph_starve, n);
+    memcpy (b->monthgraph_nojobs, monthgraph_nojobs, n);
+    memcpy (b->monthgraph_ppool, monthgraph_ppool, n);
+    b->rockets_launched = rockets_launched;
+    b->rockets_launched_success = rockets_launched_success;
+    b->coal_survey_done = coal_survey_done;
+    memcpy (b->pbars, pbars, sizeof (pbars));
+    b->cheat_flag = cheat_flag;
+    b->total_pollution_deaths = total_pollution_deaths;
+    b->pollution_deaths_history = pollution_deaths_history;
+    b->total_starve_deaths = total_starve_deaths;
+    b->starve_deaths_history = starve_deaths_history;
+    b->total_unemployed_years = total_unemployed_years;
+    b->unemployed_history = unemployed_history;
+    b->max_pop_ever = max_pop_ever;
+    b->total_evacuated = total_evacuated;
+    b->total_births = total_births;
+    memcpy (b->module_help_flag, module_help_flag, sizeof (module_help_flag));
+    snprintf (b->given_scene, sizeof (b->given_scene), "%s", given_scene);
+    b->sust_dig_ore_coal_tip_flag = sust_dig_ore_coal_tip_flag;
+    b->sust_port_flag = sust_port_flag;
+    b->sustain_flag = sustain_flag;
+    b->sust_dig_ore_coal_count = sust_dig_ore_coal_count;
+    b->sust_port_count = sust_port_count;
+    b->sust_old_money = sust_old_money;
+    b->sust_old_money_count = sust_old_money_count;
+    b->sust_old_population = sust_old_population;
+    b->sust_old_population_count = sust_old_population_count;
+    b->sust_old_tech = sust_old_tech;
+    b->sust_old_tech_count = sust_old_tech_count;
+    b->sust_fire_count = sust_fire_count;
+}
+
+static void
+load_scalar_backup_restore (struct load_scalar_backup *b)
+{
+    people_pool = b->people_pool;
+    total_money = b->total_money;
+    income_tax_rate = b->income_tax_rate;
+    coal_tax_rate = b->coal_tax_rate;
+    dole_rate = b->dole_rate;
+    transport_cost_rate = b->transport_cost_rate;
+    goods_tax_rate = b->goods_tax_rate;
+    export_tax = b->export_tax;
+    export_tax_rate = b->export_tax_rate;
+    import_cost = b->import_cost;
+    import_cost_rate = b->import_cost_rate;
+    tech_level = b->tech_level;
+    highest_tech_level = b->highest_tech_level;
+    modern_windmill_flag = b->modern_windmill_flag;
+    tpopulation = b->tpopulation;
+    tstarving_population = b->tstarving_population;
+    tunemployed_population = b->tunemployed_population;
+    power_made = b->power_made;
+    power_used = b->power_used;
+    coal_made = b->coal_made;
+    coal_used = b->coal_used;
+    goods_made = b->goods_made;
+    goods_used = b->goods_used;
+    ore_made = b->ore_made;
+    ore_used = b->ore_used;
+    housed_population = b->housed_population;
+    if (b->monthgraph_size == monthgraph_size) {
+	memcpy (monthgraph_pop, b->monthgraph_pop,
+		b->monthgraph_size * sizeof (int));
+	memcpy (monthgraph_starve, b->monthgraph_starve,
+		b->monthgraph_size * sizeof (int));
+	memcpy (monthgraph_nojobs, b->monthgraph_nojobs,
+		b->monthgraph_size * sizeof (int));
+	memcpy (monthgraph_ppool, b->monthgraph_ppool,
+		b->monthgraph_size * sizeof (int));
+    }
+    rockets_launched = b->rockets_launched;
+    rockets_launched_success = b->rockets_launched_success;
+    coal_survey_done = b->coal_survey_done;
+    memcpy (pbars, b->pbars, sizeof (pbars));
+    cheat_flag = b->cheat_flag;
+    total_pollution_deaths = b->total_pollution_deaths;
+    pollution_deaths_history = b->pollution_deaths_history;
+    total_starve_deaths = b->total_starve_deaths;
+    starve_deaths_history = b->starve_deaths_history;
+    total_unemployed_years = b->total_unemployed_years;
+    unemployed_history = b->unemployed_history;
+    max_pop_ever = b->max_pop_ever;
+    total_evacuated = b->total_evacuated;
+    total_births = b->total_births;
+    memcpy (module_help_flag, b->module_help_flag, sizeof (module_help_flag));
+    snprintf (given_scene, sizeof (b->given_scene), "%s", b->given_scene);
+    sust_dig_ore_coal_tip_flag = b->sust_dig_ore_coal_tip_flag;
+    sust_port_flag = b->sust_port_flag;
+    sustain_flag = b->sustain_flag;
+    sust_dig_ore_coal_count = b->sust_dig_ore_coal_count;
+    sust_port_count = b->sust_port_count;
+    sust_old_money = b->sust_old_money;
+    sust_old_money_count = b->sust_old_money_count;
+    sust_old_population = b->sust_old_population;
+    sust_old_population_count = b->sust_old_population_count;
+    sust_old_tech = b->sust_old_tech;
+    sust_old_tech_count = b->sust_old_tech_count;
+    sust_fire_count = b->sust_fire_count;
+}
+
+static void
+load_scalar_backup_free (struct load_scalar_backup *b)
+{
+    free (b->monthgraph_pop);
+    free (b->monthgraph_starve);
+    free (b->monthgraph_nojobs);
+    free (b->monthgraph_ppool);
+}
+
+int
 load_city (char *cname)
 {
-    unsigned long q;
-    int i, x, y, z, n, p, ver;
+    int i, x, y, p, ver;
     int num_pbars, pbar_data_size;
     int pbar_tmp;
     int dummy;
+    int load_originx = 0, load_originy = 0, load_total_time = 0;
+    int load_num_substations = 0, load_num_markets = 0;
+    int scene_is_dummy = 0;
+    int load_substationx[MAX_NUMOF_SUBSTATIONS];
+    int load_substationy[MAX_NUMOF_SUBSTATIONS];
+    int load_marketx[MAX_NUMOF_MARKETS];
+    int load_markety[MAX_NUMOF_MARKETS];
+    Map *backup = NULL;
+    struct load_scalar_backup scalar_backup;
     FILE *ofile;
     char s[256];
+
     if ((ofile = fopen_read_gzipped (cname)) == NULL) {
+	if (headless_mode) {
+	    fprintf (stderr, "load_city: cannot open %s\n", cname);
+	    return 0;
+	}
 	printf (_("Can't open <%s> (gzipped)"), cname);
 	do_error ("Can't open it!");
+	return 0;
     }
-    fscanf (ofile, "%d", &ver);
-    if (ver < MIN_LOAD_VERSION) {
-	ok_dial_box ("too-old.mes", BAD, 0L);
+    if (fscanf (ofile, "%d", &ver) != 1) {
 	fclose_read_gzipped (ofile);
-	return;
+	if (!headless_mode)
+	    ok_dial_box ("error.mes", BAD, 0L);
+	return 0;
     }
+    if (!save_version_ok (ver)) {
+	if (!headless_mode) {
+	    if (ver < MIN_LOAD_VERSION)
+		ok_dial_box ("too-old.mes", BAD, 0L);
+	    else
+		ok_dial_box ("error.mes", BAD, 0L);
+	}
+	fclose_read_gzipped (ofile);
+	return 0;
+    }
+
+    backup = (Map *) malloc (sizeof *backup);
+    if (backup == NULL)
+	malloc_failure ();
+    memcpy (backup, &map, sizeof *backup);
+    load_scalar_backup_save (&scalar_backup);
 
     init_pbars();
     num_pbars = NUM_PBARS;
     pbar_data_size = PBAR_DATA_SIZE;
 
+    /* Reset the daily/monthly/yearly accumulators before reading the saved
+       scalars.  Moving this after the parse would erase the loaded
+       tpopulation/tstarving/tunemployed values; the saved tpopulation is
+       also used below to derive housed_population for the first month. */
     init_inventory();
-    
+
     print_time_for_year();
-    q = (unsigned long) sizeof (Map_Point_Info);
     prog_box (_("Loading scene"), 0);
 
-    for (x = 0; x < WORLD_SIDE_LEN; x++) {
-	for (y = 0; y < WORLD_SIDE_LEN; y++) {
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).population) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).flags) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(unsigned short); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).coal_reserve) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(unsigned short); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).ore_reserve) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).int_1) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).int_2) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).int_3) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).int_4) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).int_5) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).int_6) + z) = n;
-	    }
-	    for (z = 0; z < sizeof(int); z++) {
-		fscanf (ofile, "%d", &n);
-		*(((unsigned char *) &MP_INFO(x,y).int_7) + z) = n;
-	    }
-	    fscanf (ofile, "%d", &n);
-	    MP_POL(x,y) = (unsigned short) n;
-	    fscanf (ofile, "%d", &n);
-	    MP_TYPE(x,y) = (short) n;
-
-	    if (get_group_of_type(MP_TYPE(x,y)) == GROUP_MARKET)
-		inventory(x,y);
-	}
-	if (((93 * x) / WORLD_SIDE_LEN) % 3 == 0)
-	    prog_box ("", (93 * x) / WORLD_SIDE_LEN);
-    }
+    if (!save_read_map (ofile, &map))
+	goto load_corrupt;
     check_endian ();
     set_map_groups ();
 
-    fscanf (ofile, "%d", &main_screen_originx);
-    fscanf (ofile, "%d", &main_screen_originy);
-    if (main_screen_originx > WORLD_SIDE_LEN - scr.main_win.w / 16 - 1)
-	main_screen_originx = WORLD_SIDE_LEN - scr.main_win.w / 16 - 1;
+    LOAD_INT (load_originx);
+    LOAD_INT (load_originy);
+    if (!map_coord_ok (load_originx, load_originy))
+	goto load_corrupt;
+    if (load_originx > WORLD_SIDE_LEN - scr.main_win.w / 16 - 1)
+	load_originx = WORLD_SIDE_LEN - scr.main_win.w / 16 - 1;
 
-    if (main_screen_originy > WORLD_SIDE_LEN - scr.main_win.h / 16 - 1)
-	main_screen_originy = WORLD_SIDE_LEN - scr.main_win.h / 16 - 1;
+    if (load_originy > WORLD_SIDE_LEN - scr.main_win.h / 16 - 1)
+	load_originy = WORLD_SIDE_LEN - scr.main_win.h / 16 - 1;
 
-    fscanf (ofile, "%d", &total_time);
+    LOAD_INT (load_total_time);
     if (ver <= MM_MS_C_VER)
 	i = OLD_MAX_NUMOF_SUBSTATIONS;
     else
 	i = MAX_NUMOF_SUBSTATIONS;
     for (x = 0; x < i; x++)
     {
-	fscanf (ofile, "%d", &substationx[x]);
-	fscanf (ofile, "%d", &substationy[x]);
+	LOAD_INT (load_substationx[x]);
+	LOAD_INT (load_substationy[x]);
     }
     prog_box ("", 92);
-    fscanf (ofile, "%d", &numof_substations);
+    LOAD_INT (load_num_substations);
+    if (load_num_substations < 0 || load_num_substations > i)
+	goto load_corrupt;
     if (ver <= MM_MS_C_VER)
 	i = OLD_MAX_NUMOF_MARKETS;
     else
 	i = MAX_NUMOF_MARKETS;
     for (x = 0; x < i; x++)
     {
-	fscanf (ofile, "%d", &marketx[x]);
-	fscanf (ofile, "%d", &markety[x]);
+	LOAD_INT (load_marketx[x]);
+	LOAD_INT (load_markety[x]);
     }
     prog_box ("", 94);
-    fscanf (ofile, "%d", &numof_markets);
-    fscanf (ofile, "%d", &people_pool);
-    fscanf (ofile, "%d", &total_money);
-    fscanf (ofile, "%d", &income_tax_rate);
-    fscanf (ofile, "%d", &coal_tax_rate);
-    fscanf (ofile, "%d", &dole_rate);
-    fscanf (ofile, "%d", &transport_cost_rate);
-    fscanf (ofile, "%d", &goods_tax_rate);
-    fscanf (ofile, "%d", &export_tax);
-    fscanf (ofile, "%d", &export_tax_rate);
-    fscanf (ofile, "%d", &import_cost);
-    fscanf (ofile, "%d", &import_cost_rate);
-    fscanf (ofile, "%d", &tech_level);
+    LOAD_INT (load_num_markets);
+    if (load_num_markets < 0 || load_num_markets > i)
+	goto load_corrupt;
+    if (!map_state_ok (map.type, map.group, map.info,
+		       load_num_markets, load_marketx, load_markety,
+		       load_num_substations, load_substationx,
+		       load_substationy)) {
+	fprintf (stderr, "load_city: invalid map or saved counts in %s\n", cname);
+	goto load_corrupt;
+    }
+    LOAD_INT (people_pool);
+    LOAD_INT (total_money);
+    LOAD_INT (income_tax_rate);
+    LOAD_INT (coal_tax_rate);
+    LOAD_INT (dole_rate);
+    LOAD_INT (transport_cost_rate);
+    LOAD_INT (goods_tax_rate);
+    LOAD_INT (export_tax);
+    LOAD_INT (export_tax_rate);
+    LOAD_INT (import_cost);
+    LOAD_INT (import_cost_rate);
+    LOAD_INT (tech_level);
     if (tech_level > MODERN_WINDMILL_TECH)
 	modern_windmill_flag = 1;
-    fscanf (ofile, "%d", &tpopulation);
-    fscanf (ofile, "%d", &tstarving_population);
-    fscanf (ofile, "%d", &tunemployed_population);
-    fscanf (ofile, "%d", &x);  /* waste_goods obsolete */
-    fscanf (ofile, "%d", &power_made);
-    fscanf (ofile, "%d", &power_used);
-    fscanf (ofile, "%d", &coal_made);
-    fscanf (ofile, "%d", &coal_used);
-    fscanf (ofile, "%d", &goods_made);
-    fscanf (ofile, "%d", &goods_used);
-    fscanf (ofile, "%d", &ore_made);
-    fscanf (ofile, "%d", &ore_used);
-    fscanf (ofile, "%d", &dummy); /* &diff_old_population */
+    LOAD_INT (tpopulation);
+    LOAD_INT (tstarving_population);
+    LOAD_INT (tunemployed_population);
+    LOAD_INT (x);  /* waste_goods obsolete */
+    LOAD_INT (power_made);
+    LOAD_INT (power_used);
+    LOAD_INT (coal_made);
+    LOAD_INT (coal_used);
+    LOAD_INT (goods_made);
+    LOAD_INT (goods_used);
+    LOAD_INT (ore_made);
+    LOAD_INT (ore_used);
+    LOAD_INT (dummy); /* &diff_old_population */
 
     /* Update variables calculated from those above */
     housed_population = tpopulation / NUMOF_DAYS_IN_MONTH;
@@ -501,29 +689,31 @@ load_city (char *cname)
     if (ver <= MG_C_VER) {
 	i = 120;
     } else {
-	fscanf (ofile, "%d", &i);
+	LOAD_INT (i);
     }
+    if (i < 0 || i > 100000)
+	goto load_corrupt;
     for (x = 0; x < i; x++) {
 	/* If more entries in file than will fit on screen, 
 	   then we need to skip past them. */
 	if (x >= monthgraph_size) {
-	    fscanf (ofile, "%d", &dummy); /* &monthgraph_pop[x] */
-	    fscanf (ofile, "%d", &dummy); /* &monthgraph_starve[x] */
-	    fscanf (ofile, "%d", &dummy); /* &monthgraph_nojobs[x] */
-	    fscanf (ofile, "%d", &dummy); /* &monthgraph_ppool[x] */
+	    LOAD_INT (dummy); /* &monthgraph_pop[x] */
+	    LOAD_INT (dummy); /* &monthgraph_starve[x] */
+	    LOAD_INT (dummy); /* &monthgraph_nojobs[x] */
+	    LOAD_INT (dummy); /* &monthgraph_ppool[x] */
 	} else {
-	    fscanf (ofile, "%d", &monthgraph_pop[x]);
-	    fscanf (ofile, "%d", &monthgraph_starve[x]);
-	    fscanf (ofile, "%d", &monthgraph_nojobs[x]);
-	    fscanf (ofile, "%d", &monthgraph_ppool[x]);
+	    LOAD_INT (monthgraph_pop[x]);
+	    LOAD_INT (monthgraph_starve[x]);
+	    LOAD_INT (monthgraph_nojobs[x]);
+	    LOAD_INT (monthgraph_ppool[x]);
 	}
 	/* If our save file is old, skip past obsolete diffgraph entries */
 	if (ver <= MG_C_VER) {
-	    fscanf (ofile, "%d", &dummy); /* &diffgraph_power[x] */
-	    fscanf (ofile, "%d", &dummy); /* &diffgraph_coal[x] */
-	    fscanf (ofile, "%d", &dummy); /* &diffgraph_goods[x] */
-	    fscanf (ofile, "%d", &dummy); /* &diffgraph_ore[x] */
-	    fscanf (ofile, "%d", &dummy); /* &diffgraph_population[x] */
+	    LOAD_INT (dummy); /* &diffgraph_power[x] */
+	    LOAD_INT (dummy); /* &diffgraph_coal[x] */
+	    LOAD_INT (dummy); /* &diffgraph_goods[x] */
+	    LOAD_INT (dummy); /* &diffgraph_ore[x] */
+	    LOAD_INT (dummy); /* &diffgraph_population[x] */
 	}
     }
     /* If screen bigger than number of entries in file, pad with zeroes */
@@ -535,15 +725,15 @@ load_city (char *cname)
 	x++;
     }
     prog_box ("", 98);
-    fscanf (ofile, "%d", &rockets_launched);
-    fscanf (ofile, "%d", &rockets_launched_success);
-    fscanf (ofile, "%d", &coal_survey_done);
+    LOAD_INT (rockets_launched);
+    LOAD_INT (rockets_launched_success);
+    LOAD_INT (coal_survey_done);
     
     for (x = 0; x < pbar_data_size; x++) {
 	for (p = 0; p < num_pbars; p++) {
-	    fscanf (ofile, "%d", &(pbar_tmp));
+	    LOAD_INT (pbar_tmp);
 	    update_pbar(p,pbar_tmp,1);
-/*	    fscanf (ofile, "%d", &(pbars[p].data[x])); */
+/*	    LOAD_INT (pbars[p].data[x]); */
 	}
     }
 
@@ -553,41 +743,48 @@ load_city (char *cname)
     prog_box ("", 99);
 
     for (p = 0; p < num_pbars; p++) {
-	fscanf (ofile, "%d", &(pbars[p].oldtot));
-	fscanf (ofile, "%d", &(pbars[p].diff));
+	LOAD_INT (pbars[p].oldtot);
+	LOAD_INT (pbars[p].diff);
     }
 
 
-    fscanf (ofile, "%d", &cheat_flag);
-    fscanf (ofile, "%d", &total_pollution_deaths);
-    fscanf (ofile, "%f", &pollution_deaths_history);
-    fscanf (ofile, "%d", &total_starve_deaths);
-    fscanf (ofile, "%f", &starve_deaths_history);
-    fscanf (ofile, "%d", &total_unemployed_years);
-    fscanf (ofile, "%f", &unemployed_history);
-    fscanf (ofile, "%d", &max_pop_ever);
-    fscanf (ofile, "%d", &total_evacuated);
-    fscanf (ofile, "%d", &total_births);
+    LOAD_INT (cheat_flag);
+    LOAD_INT (total_pollution_deaths);
+    LOAD_FLOAT (pollution_deaths_history);
+    LOAD_INT (total_starve_deaths);
+    LOAD_FLOAT (starve_deaths_history);
+    LOAD_INT (total_unemployed_years);
+    LOAD_FLOAT (unemployed_history);
+    LOAD_INT (max_pop_ever);
+    LOAD_INT (total_evacuated);
+    LOAD_INT (total_births);
     for (x = 0; x < NUMOF_MODULES; x++)
-	fscanf (ofile, "%d", &(module_help_flag[x]));
-    fscanf (ofile, "%d", &x);	/* just dummy reads */
-    fscanf (ofile, "%d", &x);	/* for backwards compatibility. */
+	LOAD_INT (module_help_flag[x]);
+    LOAD_INT (x);	/* just dummy reads */
+    LOAD_INT (x);	/* for backwards compatibility. */
 
     /* 10 dummy strings, for missed out things, have been put in save. */
     /* Input from this point uses them. */
     /* XXX: WCK: Huh? Missed out things? */
 
-    fscanf (ofile, "%128s", given_scene);
-    if (strncmp (given_scene, "dummy", 5) == 0 || strlen (given_scene) < 3)
+    if (fscanf (ofile, "%128s", given_scene) != 1)
+	goto load_corrupt;
+    if (strncmp (given_scene, "dummy", 5) == 0 || strlen (given_scene) < 3) {
 	given_scene[0] = 0;
-    fscanf (ofile, "%128s", s);
-    if (strncmp (given_scene, "dummy", 5) != 0)
-	sscanf (s, "%d", &highest_tech_level);
-    else
+	scene_is_dummy = 1;
+    }
+    if (fscanf (ofile, "%128s", s) != 1)
+	goto load_corrupt;
+    if (!scene_is_dummy) {
+	if (sscanf (s, "%d", &highest_tech_level) != 1)
+	    goto load_corrupt;
+    } else
 	highest_tech_level = 0;
-    fgets (s, 80, ofile);		/* this is the CR */
+    if (fgets (s, 80, ofile) == NULL)	/* this is the CR */
+	goto load_corrupt;
 
-    fgets (s, 80, ofile);
+    if (fgets (s, 80, ofile) == NULL)
+	goto load_corrupt;
     if (sscanf (s, "sust %d %d %d %d %d %d %d %d %d %d"
 		,&sust_dig_ore_coal_count, &sust_port_count
 		,&sust_old_money_count, &sust_old_population_count
@@ -605,6 +802,24 @@ load_city (char *cname)
 		= sust_old_tech_count = sust_fire_count
 		= sust_old_money = sust_old_population = sust_old_tech = 0;
     fclose_read_gzipped (ofile);
+    free (backup);
+    backup = NULL;
+    load_scalar_backup_free (&scalar_backup);
+
+    main_screen_originx = load_originx;
+    main_screen_originy = load_originy;
+    total_time = load_total_time;
+    numof_substations = load_num_substations;
+    numof_markets = load_num_markets;
+    memcpy (substationx, load_substationx, sizeof (substationx));
+    memcpy (substationy, load_substationy, sizeof (substationy));
+    memcpy (marketx, load_marketx, sizeof (marketx));
+    memcpy (markety, load_markety, sizeof (markety));
+
+    for (x = 0; x < WORLD_SIDE_LEN; x++)
+	for (y = 0; y < WORLD_SIDE_LEN; y++)
+	    if (MP_GROUP(x,y) == GROUP_MARKET)
+		inventory(x,y);
 
     numof_shanties = count_groups (GROUP_SHANTY);
     numof_communes = count_groups (GROUP_COMMUNE);
@@ -628,21 +843,40 @@ load_city (char *cname)
 	}
     }
 
-    unhighlight_module_button (selected_module);
-    selected_module = sbut[7];	/* 7 is track.  Watch out though! */
-    highlight_module_button (selected_module);
-    set_selected_module (CST_TRACK_LR);
-
-    print_total_money ();
+    if (!headless_mode) {
+	unhighlight_module_button (selected_module);
+	selected_module = sbut[7];	/* 7 is track.  Watch out though! */
+	highlight_module_button (selected_module);
+	set_selected_module (CST_TRACK_LR);
+	print_total_money ();
+    }
     reset_animation_times ();
     map_power_grid (); /* WCK:  Is this safe to do here? */
+    fprintf (stderr, "load_city: loaded %s\n", cname);
+    return 1;
+
+load_corrupt:
+    fprintf (stderr, "load_city: truncated or invalid save file: %s\n", cname);
+    if (backup) {
+	memcpy (&map, backup, sizeof *backup);
+	free (backup);
+    }
+    load_scalar_backup_restore (&scalar_backup);
+    load_scalar_backup_free (&scalar_backup);
+    fclose_read_gzipped (ofile);
+    if (!headless_mode)
+	ok_dial_box ("error.mes", BAD, 0L);
+    return 0;
 }
+
+#undef LOAD_INT
+#undef LOAD_FLOAT
 
 void
 load_saved_city (char *s)
 {
     char *cname = (char *) malloc (strlen (lc_save_dir) + strlen (s) + 2);
-    sprintf (cname, "%s%c%s", lc_save_dir, PATH_SLASH, s);
+    snprintf (cname, strlen (lc_save_dir) + strlen (s) + 2, "%s%c%s", lc_save_dir, PATH_SLASH, s);
     load_city (cname);
     free (cname);
 }
@@ -696,7 +930,7 @@ verify_city (char *cname)
     }
     if ((s = (char *) malloc (lc_save_dir_len + strlen(cname) + 2)) == 0)
 	malloc_failure ();
-    sprintf (s, "%s%c%s", lc_save_dir, PATH_SLASH, cname);
+    snprintf (s, lc_save_dir_len + strlen(cname) + 2, "%s%c%s", lc_save_dir, PATH_SLASH, cname);
     if (!file_exists(s)) {
 	free (s);
 	return 0;
@@ -704,12 +938,13 @@ verify_city (char *cname)
     fp = fopen_read_gzipped (s);
     if (fp == NULL) {
 	v = 0;
-    } else if (1 != fscanf (fp, "%d", &v)) {
-	v = 0;
+    } else {
+	if (1 != fscanf (fp, "%d", &v))
+	    v = 0;
+	fclose_read_gzipped (fp);
     }
-    fclose_read_gzipped (fp);
     free (s);
-    return v == VERSION_INT;
+    return save_version_ok (v);
 }
 
 #ifdef MP_SANITY_CHECK
@@ -766,7 +1001,7 @@ check_endian (void)
 		eswap32 ((int *) &(MP_INFO(x,y).coal_reserve));
 		eswap32 ((int *) &(MP_INFO(x,y).ore_reserve));
 	    } else {
-		printf ("Strange size (%d) for short, please mail me.\n",
+		printf ("Strange size (%zu) for short, please mail me.\n",
 			sizeof (short));
 	    }
 	    eswap32 (&(MP_INFO(x,y).int_1));

@@ -8,7 +8,7 @@
 
 void clear_mappoint (short fill, int x, int y);
 void new_city (int* originx, int* originy, int random_village);
-void count_all_groups (int* group_count);
+void count_all_groups (int* group_count, int group_count_len);
 void do_time_step (void);
 
 #endif	/* __simulate_h__ */

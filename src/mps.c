@@ -137,7 +137,7 @@ mps_update(void)
     int i;
     
     for (i = 0; i < MAPPOINT_STATS_LINES; i++) {
-	strcpy(mps_info[i],"");
+	mps_info[i][0] = '\0';
     }
 
     switch (mps_style) {
@@ -292,12 +292,20 @@ mps_global_advance(void)
 
 */
 
+static int
+mps_slot_ok (int i)
+{
+  return i >= 0 && i < MAPPOINT_STATS_LINES;
+}
+
 void
 mps_store_title(int i, char * t)
 {
   int c;
   int l;
 
+  if (!mps_slot_ok (i))
+    return;
   l = strlen(t);
   c = (int)((MPS_INFO_CHARS - l) / 2) + l;
   snprintf(mps_info[i],MPS_INFO_CHARS,"%*s", c, t);
@@ -310,6 +318,8 @@ mps_store_fp(int i, double f)
   int l;
   char s[12];
   
+  if (!mps_slot_ok (i))
+    return;
   snprintf(s, sizeof(s), "%.1f%%",f);
   l = strlen(s);
   c = (int)((MPS_INFO_CHARS - l) / 2) + l;
@@ -323,6 +333,8 @@ mps_store_f(int i, double f)
   int l;
   char s[12];
   
+  if (!mps_slot_ok (i))
+    return;
   snprintf(s, sizeof(s), "%.1f",f);
   l = strlen(s);
   c = (int)((MPS_INFO_CHARS - l) / 2) + l;
@@ -336,6 +348,8 @@ mps_store_d(int i, int d)
   int l;
   char s[12];
   
+  if (!mps_slot_ok (i))
+    return;
   snprintf(s, sizeof(s), "%d",d);
   l = strlen(s);
   c = (int)((MPS_INFO_CHARS - l) / 2) + l;
@@ -346,7 +360,13 @@ void
 mps_store_ss(int i, char * s1, char * s2)
 {
     int l;
+    if (!mps_slot_ok (i))
+	return;
     l = snprintf(mps_info[i], MPS_INFO_CHARS, "%s", s1);
+    if (l < 0)
+	return;
+    if (l >= MPS_INFO_CHARS)
+	l = MPS_INFO_CHARS - 1;
     snprintf(&mps_info[i][l], MPS_INFO_CHARS - l, "%*s", 
 	     (MPS_INFO_CHARS - l - 1), s2);
 }
@@ -359,15 +379,25 @@ mps_store_sss(int i, char * s1, char * s2, char * s3)
     int c = (MPS_INFO_CHARS) / 3;
     int m = (MPS_INFO_CHARS) % 3;
 
-    if (i > MAPPOINT_STATS_LINES) {
+    if (!mps_slot_ok (i)) {
 	return;
     }
 
     l = snprintf(mps_info[i], c + m, "%s", s1);
+    if (l < 0)
+	return;
+    if (l >= c + m)
+	l = c + m - 1;
     e = l;
     l = snprintf(&mps_info[i][e], (c * 2) + m - e, "%*s", 
 		 (c * 2) + m - e - 1, s2);
+    if (l < 0)
+	return;
+    if (l > (c * 2) + m - e)
+	l = (c * 2) + m - e;
     e += l;
+    if (e >= (c * 3) + m)
+	e = (c * 3) + m - 1;
     snprintf(&mps_info[i][e],  (c * 3) + m - e, "%*s", 
 	     (c * 3) + m - e - 1, s3);
 }
@@ -377,12 +407,16 @@ mps_store_sd(int i, char * s, int d)
 {
     int l;
 
-    if (i > MAPPOINT_STATS_LINES) {
+    if (!mps_slot_ok (i)) {
 	return;
     }
 
     l = snprintf(mps_info[i], MPS_INFO_CHARS, "%s", s);
-    snprintf(&mps_info[i][l], MPS_INFO_CHARS, "%*d", 
+    if (l < 0)
+	return;
+    if (l >= MPS_INFO_CHARS)
+	l = MPS_INFO_CHARS - 1;
+    snprintf(&mps_info[i][l], MPS_INFO_CHARS - l, "%*d",
 	     (MPS_INFO_CHARS - 1 - l), d);
 }
 
@@ -390,8 +424,14 @@ void
 mps_store_sfp(int i, char * s, double fl)
 {
     int l;
+    if (!mps_slot_ok (i))
+	return;
     l = snprintf(mps_info[i], MPS_INFO_CHARS, "%s", s); 
-    snprintf(&mps_info[i][l], MPS_INFO_CHARS, "%*.1f%%",
+    if (l < 0)
+	return;
+    if (l >= MPS_INFO_CHARS)
+	l = MPS_INFO_CHARS - 1;
+    snprintf(&mps_info[i][l], MPS_INFO_CHARS - l, "%*.1f%%",
 	     MPS_INFO_CHARS - 2 - l, fl);
 }
 

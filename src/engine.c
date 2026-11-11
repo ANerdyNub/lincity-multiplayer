@@ -9,6 +9,7 @@
 #include "common.h"
 #include "lctypes.h"
 #include "lin-city.h"
+#include "validation.h"
 #include "engine.h"
 #include "engglobs.h"
 #include "cliglobs.h"
@@ -39,12 +40,9 @@ adjust_money(int value)
 
 int is_real_river (int x, int y);
 
-int
-no_credit_build (int selected_group)
+static int
+group_requires_credit (int selected_group)
 {
-  if (total_money >= 0)
-    return (0);
-
 #ifdef GROUP_POWER_SOURCE_NO_CREDIT
   if (selected_group == GROUP_POWER_SOURCE) {
     return (1);
@@ -71,10 +69,47 @@ no_credit_build (int selected_group)
   }
 #endif
 
-  if (main_groups[selected_group].no_credit == TRUE ) {
-    return (1);
-  }
-  return (0);
+  return (main_groups[selected_group].no_credit == TRUE);
+}
+
+/* Credit groups cannot start a build that the current balance does not
+   cover.  Other groups keep the original credit-building behavior; making
+   every group require its full cost would reject every build in a new city
+   (which starts at balance 0). */
+int
+no_credit_build (int selected_group, int cost)
+{
+  if (!group_requires_credit (selected_group))
+    return (0);
+  return (total_money < cost);
+}
+
+/* Return 1 when the complete footprint is inside the map and every
+   cell is green (bare) ground.  This is the shared placement check used
+   by the mouse and by place_item(); the port river edge and the tip/ore
+   mine site rules remain in place_item(). */
+int
+placement_ok (int x, int y, short type)
+{
+    int group, size, i, j;
+
+    if (!type_ok (type) || !map_coord_ok (x, y))
+	return 0;
+
+    group = get_group_of_type (type);
+    if (!group_ok (group))
+	return 0;
+
+    size = main_groups[group].size;
+    if (size < 1 || !map_rect_ok (x, y, size, size))
+	return 0;
+
+    for (j = 0; j < size; j++)
+	for (i = 0; i < size; i++)
+	    if (MP_TYPE(x + i, y + j) != CST_GREEN)
+		return 0;
+
+    return 1;
 }
 
 int 
@@ -82,14 +117,26 @@ place_item (int x, int y, short type)
 {
     int group;
     int size;
+    int cost;
+
+    if (!type_ok (type) || !map_coord_ok (x, y))
+	return -1;
 
     group = get_group_of_type(type);
-    if (group < 0) return -1;
+    if (!group_ok (group)) return -1;
+
+    /* The requested type owns the cost, not the host's current selection. */
+    cost = get_type_cost(type);
 
     size = main_groups[group].size;
+    if (!map_rect_ok (x, y, size, size))
+	return -1;
+
+    if (!placement_ok (x, y, type))
+	return -1;
 
     /* You can't build because credit not available. */
-    if (no_credit_build (group) != 0) {
+    if (no_credit_build (group, cost) != 0) {
 	return -1;
     }
 
@@ -226,7 +273,7 @@ place_item (int x, int y, short type)
 
     connect_transport (x-2,y-2,x+size+1,y+size+1);
 
-    adjust_money(-selected_module_cost);
+    adjust_money(-cost);
     map_power_grid();
     return 0;
 }
@@ -236,13 +283,20 @@ bulldoze_item (int x, int y)
 {
     int g, size;
 
+    if (!map_coord_ok (x, y))
+	return -1;
+
     if (MP_TYPE(x,y) == CST_USED) {
 	/* This is considered "improper" input.  Silently ignore. */
 	return -1;
     }
 
-    size = MP_SIZE(x,y);
     g = MP_GROUP(x,y);
+    if (!group_ok (g))
+	return -1;
+    size = main_groups[g].size;
+    if (!map_rect_ok (x, y, size, size))
+	return -1;
 
     if (g == GROUP_BARE) {
 	/* Nothing to do. */
@@ -529,7 +583,7 @@ do_pollution ()
   do {
     if (*pol > 0)
       *pol /= POL_DIV;
-  } while (++pol < &map.pollution[WORLD_SIDE_LEN][0]);
+  } while (++pol < &map.pollution[0][0] + WORLD_SIDE_LEN * WORLD_SIDE_LEN);
 }
 
 

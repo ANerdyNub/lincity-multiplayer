@@ -553,34 +553,9 @@ do_mouse_main_win (int px, int py, int button)
     if (py > (mw->y + mw->h) - size*16)
 	py = (mw->y + mw->h) - size*16;
     pixel_to_mappoint(px, py, &x, &y);
+    if (!placement_ok (x, y, selected_module_type))
+	return;
 
-    if (size >= 2)
-    {
-	if (MP_TYPE(x + 1,y) != CST_GREEN
-	    || MP_TYPE(x,y + 1) != CST_GREEN
-	    || MP_TYPE(x + 1,y + 1) != CST_GREEN)
-	    return;
-    }
-    if (size >= 3)
-    {
-	if (MP_TYPE(x + 2,y) != CST_GREEN
-	    || MP_TYPE(x + 2,y + 1) != CST_GREEN
-	    || MP_TYPE(x + 2,y + 2) != CST_GREEN
-	    || MP_TYPE(x + 1,y + 2) != CST_GREEN
-	    || MP_TYPE(x,y + 2) != CST_GREEN)
-	    return;
-    }
-    if (size == 4)
-    {
-	if (MP_TYPE(x + 3,y) != CST_GREEN
-	    || MP_TYPE(x + 3,y + 1) != CST_GREEN
-	    || MP_TYPE(x + 3,y + 2) != CST_GREEN
-	    || MP_TYPE(x + 3,y + 3) != CST_GREEN
-	    || MP_TYPE(x + 2,y + 3) != CST_GREEN
-	    || MP_TYPE(x + 1,y + 3) != CST_GREEN
-	    || MP_TYPE(x,y + 3) != CST_GREEN)
-	    return;
-    }
 
     /* Place the selected item */
 #if defined (NETWORK_ENABLE)
@@ -596,8 +571,8 @@ do_mouse_main_win (int px, int py, int button)
 	/* Success */
 #if defined (NETWORK_ENABLE)
 	if (network_game && network_is_host)
-	    network_host_broadcast_action_all (MSG_BUILD,
-					   x, y, selected_module_type);
+	    network_host_broadcast_build_if_placed (MSG_BUILD, x, y,
+						   selected_module_type, 0);
 #endif
 	break;
     case -1:
@@ -814,16 +789,21 @@ check_bulldoze_area (int x, int y)
 	ok_dial_box ("nobull-tip.mes", BAD, 0L);
 	return;
     }
-
-    bulldoze_item (xx,yy);
+    {
 #if defined (NETWORK_ENABLE)
-    if (network_game && !network_is_host)
-	network_client_send_action (network_socket, MSG_BULLDOZE,
-				    xx, yy, 0);
-    else if (network_game && network_is_host)
-	network_host_broadcast_action_all (MSG_BULLDOZE,
-				       xx, yy, 0);
+	if (network_game && !network_is_host) {
+	    /* The host decides whether this click removes anything. */
+	    network_client_request_bulldoze (network_socket, xx, yy);
+	} else
 #endif
+	{
+	    int bulldozed = bulldoze_item (xx,yy);
+#if defined (NETWORK_ENABLE)
+	    if (network_game && network_is_host)
+		network_host_broadcast_bulldoze_if_removed (xx, yy, bulldozed);
+#endif
+	}
+    }
 }
 
 /* XXX: mouse.c?  wtf! */
@@ -855,12 +835,10 @@ drag_screen (void)
     int origin_x = 0;
     int origin_y = 0;
 
-    int in_main_window;
-
-    if (buttons[LC_MOUSE_MIDDLEBUTTON-1].mappoint_x == 0) 
+    if (buttons[LC_MOUSE_MIDDLEBUTTON-1].mappoint_x == 0)
 	return;   /* Not pressed in main window */
 
-    in_main_window = pixel_to_mappoint(cs_mouse_x, cs_mouse_y, 
+    (void)pixel_to_mappoint(cs_mouse_x, cs_mouse_y,
 				       &cur_mappoint_x, &cur_mappoint_y);
   
     pixel_to_winpoint(cs_mouse_x, cs_mouse_y, &cur_winpoint_x, &cur_winpoint_y);
@@ -871,6 +849,22 @@ drag_screen (void)
 	    buttons[LC_MOUSE_MIDDLEBUTTON-1].mappoint_y - cur_winpoint_y;  
 
     adjust_main_origin (origin_x, origin_y, 1);
+}
+
+static void
+toggle_market_flag (int flag, int is_sell, int box)
+{
+#if defined (NETWORK_ENABLE)
+    if (network_game && !network_is_host) {
+	/* Ask the host to merge this trade bit.  Do not touch the local
+	   flags: a rejected request must leave the market unchanged. */
+	network_client_request_mflags (network_socket, mcbx, mcby,
+				      MP_INFO(mcbx,mcby).flags ^ flag);
+	return;
+    }
+#endif
+    MP_INFO(mcbx,mcby).flags ^= flag;
+    draw_cb_box (box, is_sell, MP_INFO(mcbx,mcby).flags & flag);
 }
 
 void
@@ -905,57 +899,41 @@ do_market_cb_template (int x, int y, int is_market_cb)
     /* jobs */
     if (is_market_cb && y >= mcb->y + 36 + (CB_SPACE * 0) 
       && y <= mcb->y + 52 + (CB_SPACE * 0))	{
-	int flag = is_sell ? FLAG_MS_JOBS : FLAG_MB_JOBS;
-	MP_INFO(mcbx,mcby).flags ^= flag;
-	draw_cb_box (0, is_sell, MP_INFO(mcbx,mcby).flags & flag);
+	toggle_market_flag (is_sell ? FLAG_MS_JOBS : FLAG_MB_JOBS, is_sell, 0);
     }
     /* food */
     else if (y >= mcb->y + 36 + (CB_SPACE * 1) 
       && y <= mcb->y + 52 + (CB_SPACE * 1)) {
-	int flag = is_sell ? FLAG_MS_FOOD : FLAG_MB_FOOD;
-	MP_INFO(mcbx,mcby).flags ^= flag;
-	draw_cb_box (1, is_sell, MP_INFO(mcbx,mcby).flags & flag);
+	toggle_market_flag (is_sell ? FLAG_MS_FOOD : FLAG_MB_FOOD, is_sell, 1);
     }
     /* coal */
     else if (y >= mcb->y + 36 + (CB_SPACE * 2)
       && y <= mcb->y + 52 + (CB_SPACE * 2)) {
-	int flag = is_sell ? FLAG_MS_COAL : FLAG_MB_COAL;
-	MP_INFO(mcbx,mcby).flags ^= flag;
-	draw_cb_box (2, is_sell, MP_INFO(mcbx,mcby).flags & flag);
+	toggle_market_flag (is_sell ? FLAG_MS_COAL : FLAG_MB_COAL, is_sell, 2);
     }
     /* ore */
     else if (y >= mcb->y + 36 + (CB_SPACE * 3) 
       && y <= mcb->y + 52 + (CB_SPACE * 3)) {
-	int flag = is_sell ? FLAG_MS_ORE : FLAG_MB_ORE;
-	MP_INFO(mcbx,mcby).flags ^= flag;
-	draw_cb_box (3, is_sell, MP_INFO(mcbx,mcby).flags & flag);
+	toggle_market_flag (is_sell ? FLAG_MS_ORE : FLAG_MB_ORE, is_sell, 3);
     }
     /* goods */
     else if (y >= mcb->y + 36 + (CB_SPACE * 4) 
       && y <= mcb->y + 52 + (CB_SPACE * 4)) {
-	int flag = is_sell ? FLAG_MS_GOODS : FLAG_MB_GOODS;
-	MP_INFO(mcbx,mcby).flags ^= flag;
-	draw_cb_box (4, is_sell, MP_INFO(mcbx,mcby).flags & flag);
+	toggle_market_flag (is_sell ? FLAG_MS_GOODS : FLAG_MB_GOODS, is_sell, 4);
     }
     /* steel */
     else if (y >= mcb->y + 36 + (CB_SPACE * 5)
       && y <= mcb->y + 52 + (CB_SPACE * 5)) {
-	int flag = is_sell ? FLAG_MS_STEEL : FLAG_MB_STEEL;
-	MP_INFO(mcbx,mcby).flags ^= flag;
-	draw_cb_box (5, is_sell, MP_INFO(mcbx,mcby).flags & flag);
+	toggle_market_flag (is_sell ? FLAG_MS_STEEL : FLAG_MB_STEEL, is_sell, 5);
     }
 
     redraw_mouse ();
 
 #if defined (NETWORK_ENABLE)
-    if (network_game && MP_INFO(mcbx,mcby).flags != old_flags) {
-	if (network_is_host)
-	    network_host_broadcast_action_all (MSG_MFLAGS, mcbx,
+    if (network_game && network_is_host
+	&& MP_INFO(mcbx,mcby).flags != old_flags)
+	network_host_broadcast_action_all (MSG_MFLAGS, mcbx,
 					   mcby, MP_INFO(mcbx,mcby).flags);
-	else
-	    network_client_send_action (network_socket, MSG_MFLAGS, mcbx, mcby,
-					MP_INFO(mcbx,mcby).flags);
-    }
 #endif
 }
 
@@ -1014,7 +992,9 @@ choose_residence (void)
     FILE* tempfile;
     char* s = (char*) malloc (lc_save_dir_len + 9);
 
-    sprintf (s, "%s%c%s", lc_save_dir, PATH_SLASH, "res.tmp");
+    if (s == NULL)
+	malloc_failure ();
+    snprintf (s, lc_save_dir_len + 9, "%s%c%s", lc_save_dir, PATH_SLASH, "res.tmp");
     if ((tempfile = fopen (s, "w")) == 0)
 	do_error ("Can't write res.tmp");
     free (s);
@@ -1166,9 +1146,7 @@ mt_temp(int x, int y)
 	return 1;
     }
     return 0;
-}
-
-static inline int
+}static inline int
 mt_perm(int x, int y)
 {
     if (x < 0 || y < 0 || x >= WORLD_SIDE_LEN || y >= WORLD_SIDE_LEN)
@@ -1180,28 +1158,35 @@ mt_perm(int x, int y)
 	} else if (!overwrite_transport_flag) {
 	    return 0;
 	} else {
-	    bulldoze_item(x,y);
 #if defined (NETWORK_ENABLE)
 	    if (network_game && !network_is_host) {
-		network_client_send_action (network_socket, MSG_BULLDOZE,
-					    x, y, 0);
+		/* Send the replacement requests; leave the map for the
+		   host's broadcast.  The preview was already erased. */
+		network_client_request_bulldoze (network_socket, x, y);
 		network_client_send_action (network_socket, MSG_BUILD,
 					    x, y, selected_module_type);
 		return 1;
 	    }
-	    if (network_game && network_is_host) {
-		network_host_broadcast_action_all (MSG_BULLDOZE,
-						   x, y, 0);
-		place_item (x,y,selected_module_type);
-		network_host_broadcast_action_all (MSG_BUILD,
-						   x, y, selected_module_type);
-		return 1;
-	    }
 #endif
-	    place_item (x,y,selected_module_type);
+	    {
+		int bulldozed = bulldoze_item(x,y);
+#if defined (NETWORK_ENABLE)
+		if (network_game && network_is_host) {
+		    int placed;
+
+		    network_host_broadcast_bulldoze_if_removed (x, y, bulldozed);
+		    placed = place_item (x,y,selected_module_type);
+		    network_host_broadcast_build_if_placed (MSG_BUILD, x, y,
+							    selected_module_type,
+							    placed);
+		    return 1;
+		}
+#endif
+		place_item (x,y,selected_module_type);
+	    }
 	    return 1;
 	}
-    } else if (MP_GROUP(x,y) == GROUP_BARE) {
+    } else if (placement_ok (x, y, selected_module_type)) {
 #if defined (NETWORK_ENABLE)
 	if (network_game && !network_is_host) {
 	    network_client_send_action (network_socket, MSG_BUILD,
@@ -1209,12 +1194,15 @@ mt_perm(int x, int y)
 	    return 1;
 	}
 #endif
-	place_item (x,y,selected_module_type);
+	{
+	    int placed = place_item (x,y,selected_module_type);
 #if defined (NETWORK_ENABLE)
-	if (network_game && network_is_host)
-	    network_host_broadcast_action_all (MSG_BUILD,
-					   x, y, selected_module_type);
+	    if (network_game && network_is_host)
+		network_host_broadcast_build_if_placed (MSG_BUILD, x, y,
+						    selected_module_type,
+						    placed);
 #endif
+	}
 	return 1;
     }
     return 0;
@@ -1285,7 +1273,13 @@ mt_draw (int cxp, int cyp, int flag) /* c[xy]p are pixel coordinates */
     if (flag != MT_START && !mt_flag) 
 	return 0;
     
-    pixel_to_mappoint(cxp, cyp,  &cx, &cy);
+    if (!pixel_to_mappoint(cxp, cyp, &cx, &cy)) {
+	if (flag == MT_START || ox == 0)
+	    return 0;
+	/* Release/continue outside the map: keep the last valid point. */
+	cx = dx;
+	cy = dy;
+    }
 
     switch(flag) {
     case MT_SUCCESS:
@@ -1470,15 +1464,22 @@ mb_draw (int cxp, int cyp, int flag)
 			mx = x;
 			my = y;
 		    }
-		    bulldoze_item (mx, my);
+		    {
 #if defined (NETWORK_ENABLE)
-		    if (network_game && !network_is_host)
-			network_client_send_action (network_socket, MSG_BULLDOZE,
-						    mx, my, 0);
-		    else if (network_game && network_is_host)
-			network_host_broadcast_action_all (MSG_BULLDOZE,
-						       mx, my, 0);
+			if (network_game && !network_is_host) {
+			    network_client_request_bulldoze (network_socket,
+							    mx, my);
+			} else
 #endif
+			{
+			    int bulldozed = bulldoze_item (mx, my);
+#if defined (NETWORK_ENABLE)
+			    if (network_game && network_is_host)
+				network_host_broadcast_bulldoze_if_removed (mx, my,
+								    bulldozed);
+#endif
+			}
+		    }
 		}
 	}
 	mb_flag = 0;

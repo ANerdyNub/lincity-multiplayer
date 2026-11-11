@@ -22,6 +22,7 @@ struct map_struct
 typedef struct map_struct Map;
 
 extern Map map;
+extern int headless_mode;
 
 #define MP_TYPE(x,y)   map.type[x][y]
 #define MP_GROUP(x,y)  map.group[x][y]

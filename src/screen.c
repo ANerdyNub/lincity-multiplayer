@@ -151,6 +151,8 @@ rotate_main_screen (void)
 void 
 update_main_screen (int full_refresh)
 {
+    if (headless_mode)
+	return;
     if (main_screen_flag == MAIN_SCREEN_NORMAL_FLAG) {
 	update_main_screen_normal (full_refresh);
     } else {
@@ -204,6 +206,7 @@ update_main_screen_normal (int full_refresh)
 {
     Rect* mw = &scr.main_win;
     int x, y, xm, ym;
+    int x_start, x_end, y_start, y_end;
     short typ, grp;
 #ifdef USE_PIXMAPS
     int sx, sy, dx, dy, x1, y1;
@@ -229,10 +232,19 @@ update_main_screen_normal (int full_refresh)
 	hide_mouse ();
 #endif
     clip_main_window ();
-    for (y = main_screen_originy - ym; y < main_screen_originy
-		 + (mw->h / 16); y++)
-	for (x = main_screen_originx - xm; x < main_screen_originx
-		     + (mw->w / 16); x++)
+    /* M12: a random start can leave the origin at 74.  The extra three
+       columns/rows drawn on the left/top plus the visible window would
+       otherwise reach index WORLD_SIDE_LEN. */
+    x_start = main_screen_originx - xm;
+    y_start = main_screen_originy - ym;
+    x_end = main_screen_originx + (mw->w / 16);
+    y_end = main_screen_originy + (mw->h / 16);
+    if (x_start < 0) x_start = 0;
+    if (y_start < 0) y_start = 0;
+    if (x_end > WORLD_SIDE_LEN) x_end = WORLD_SIDE_LEN;
+    if (y_end > WORLD_SIDE_LEN) y_end = WORLD_SIDE_LEN;
+    for (y = y_start; y < y_end; y++)
+	for (x = x_start; x < x_end; x++)
 	{
 	    typ = MP_TYPE(x,y);
 	    if (typ != mappointoldtype[x][y] || full_refresh)
@@ -801,21 +813,21 @@ load_fonts()
 	main_font[i] = fgetc (inf);
     fclose (inf);
     /* start_font1 */
-    sprintf (s, "%s%c%s", opening_path, PATH_SLASH, "8x8thin");
+    snprintf (s, sizeof(s), "%s%c%s", opening_path, PATH_SLASH, "8x8thin");
     if ((inf = fopen (s, "rb")) == NULL)
 	do_error ("Can't open opening screen font 8x8thin");
     for (i = 0; i < 2048; i++)
 	start_font1[i] = fgetc (inf);
     fclose (inf);
     /* start_font2 */
-    sprintf (s, "%s%c%s", opening_path, PATH_SLASH, "scrawl_w.fnt");
+    snprintf (s, sizeof(s), "%s%c%s", opening_path, PATH_SLASH, "scrawl_w.fnt");
     if ((inf = fopen (s, "rb")) == NULL)
 	do_error ("Can't open opening screen font scrawl_w.fnt");
     for (i = 0; i < 4096; i++)
 	start_font2[i] = fgetc (inf);
     fclose (inf);
     /* start_font3 */
-    sprintf (s, "%s%c%s", opening_path, PATH_SLASH, "scrawl_s.fnt");
+    snprintf (s, sizeof(s), "%s%c%s", opening_path, PATH_SLASH, "scrawl_s.fnt");
     if ((inf = fopen (s, "rb")) == NULL)
 	do_error ("Can't open opening screen font scrawl_s.fnt");
     for (i = 0; i < 4096; i++)
@@ -1377,114 +1389,114 @@ draw_mini_screen_ocost (void)
     Fgl_fillbox (b->x, b->y,
 		 WORLD_SIDE_LEN, WORLD_SIDE_LEN, green (12));
     Fgl_setfontcolors (green (12), TEXT_FG_COLOUR);
-    sprintf (s, "OC yr %04d", (total_time / NUMOF_DAYS_IN_YEAR) - 1);
+    snprintf (s, sizeof(s), "OC yr %04d", (total_time / NUMOF_DAYS_IN_YEAR) - 1);
     Fgl_write (b->x + 10, b->y + 2, s);
 
     if (ly_interest > 19999)
     {
-	sprintf (s, "Int %4dK", ly_interest / 1000);
+	snprintf (s, sizeof(s), "Int %4dK", ly_interest / 1000);
     }
     else
-	sprintf (s, "Int %5d", ly_interest);
+	snprintf (s, sizeof(s), "Int %5d", ly_interest);
     Fgl_write (b->x + 10, b->y + 16, s);
 
     if (ly_school_cost > 19999)
     {
 	if (ly_school_cost > 1999999)
-	    sprintf (s, "Scl %4dM", ly_school_cost / 1000000);
+	    snprintf (s, sizeof(s), "Scl %4dM", ly_school_cost / 1000000);
 	else
-	    sprintf (s, "Scl %4dK", ly_school_cost / 1000);
+	    snprintf (s, sizeof(s), "Scl %4dK", ly_school_cost / 1000);
     }
     else
-	sprintf (s, "Scl %5d", ly_school_cost);
+	snprintf (s, sizeof(s), "Scl %5d", ly_school_cost);
     Fgl_write (b->x + 10, b->y + 24, s);
 
     if (ly_university_cost > 19999)
     {
 	if (ly_university_cost > 1999999)
-	    sprintf (s, "Uni %4dM", ly_university_cost / 1000000);
+	    snprintf (s, sizeof(s), "Uni %4dM", ly_university_cost / 1000000);
 	else
-	    sprintf (s, "Uni %4dK", ly_university_cost / 1000);
+	    snprintf (s, sizeof(s), "Uni %4dK", ly_university_cost / 1000);
     }
     else
-	sprintf (s, "Uni %5d", ly_university_cost);
+	snprintf (s, sizeof(s), "Uni %5d", ly_university_cost);
     Fgl_write (b->x + 10, b->y + 32, s);
 
     if (ly_deaths_cost > 19999)
     {
 	if (ly_deaths_cost > 1999999)
-	    sprintf (s, "UnD %4dM", ly_deaths_cost / 1000000);
+	    snprintf (s, sizeof(s), "UnD %4dM", ly_deaths_cost / 1000000);
 	else
-	    sprintf (s, "UnD %4dK", ly_deaths_cost / 1000);
+	    snprintf (s, sizeof(s), "UnD %4dK", ly_deaths_cost / 1000);
     }
     else
-	sprintf (s, "UnD %5d", ly_deaths_cost);
+	snprintf (s, sizeof(s), "UnD %5d", ly_deaths_cost);
     Fgl_write (b->x + 10, b->y + 40, s);
 
     if (ly_windmill_cost > 19999)
     {
 	if (ly_windmill_cost > 1999999)
-	    sprintf (s, "WiM %4dM", ly_windmill_cost / 1000000);
+	    snprintf (s, sizeof(s), "WiM %4dM", ly_windmill_cost / 1000000);
 	else
-	    sprintf (s, "WiM %4dK", ly_windmill_cost / 1000);
+	    snprintf (s, sizeof(s), "WiM %4dK", ly_windmill_cost / 1000);
     }
     else
-	sprintf (s, "WiM %5d", ly_windmill_cost);
+	snprintf (s, sizeof(s), "WiM %5d", ly_windmill_cost);
     Fgl_write (b->x + 10, b->y + 48, s);
 
     if (ly_recycle_cost > 19999)
     {
 	if (ly_recycle_cost > 1999999)
-	    sprintf (s, "Rcy %4dM", ly_recycle_cost / 1000000);
+	    snprintf (s, sizeof(s), "Rcy %4dM", ly_recycle_cost / 1000000);
 	else
-	    sprintf (s, "Rcy %4dK", ly_recycle_cost / 1000);
+	    snprintf (s, sizeof(s), "Rcy %4dK", ly_recycle_cost / 1000);
     }
     else
-	sprintf (s, "Rcy %5d", ly_recycle_cost);
+	snprintf (s, sizeof(s), "Rcy %5d", ly_recycle_cost);
     Fgl_write (b->x + 10, b->y + 56, s);
 
     if (ly_health_cost > 19999)
     {
 	if (ly_health_cost > 1999999)
-	    sprintf (s, "Hth %4dM", ly_health_cost / 1000000);
+	    snprintf (s, sizeof(s), "Hth %4dM", ly_health_cost / 1000000);
 	else
-	    sprintf (s, "Hth %4dK", ly_health_cost / 1000);
+	    snprintf (s, sizeof(s), "Hth %4dK", ly_health_cost / 1000);
     }
     else
-	sprintf (s, "Hth %5d", ly_health_cost);
+	snprintf (s, sizeof(s), "Hth %5d", ly_health_cost);
     Fgl_write (b->x + 10, b->y + 64, s);
 
     if (ly_rocket_pad_cost > 19999)
     {
 	if (ly_rocket_pad_cost > 1999999)
-	    sprintf (s, "Rok %4dM", ly_rocket_pad_cost / 1000000);
+	    snprintf (s, sizeof(s), "Rok %4dM", ly_rocket_pad_cost / 1000000);
 	else
-	    sprintf (s, "Rok %4dK", ly_rocket_pad_cost / 1000);
+	    snprintf (s, sizeof(s), "Rok %4dK", ly_rocket_pad_cost / 1000);
     }
     else
-	sprintf (s, "Rok %5d", ly_rocket_pad_cost);
+	snprintf (s, sizeof(s), "Rok %5d", ly_rocket_pad_cost);
     Fgl_write (b->x + 10, b->y + 72, s);
 
     if (ly_fire_cost > 19999)
     {
 	if (ly_fire_cost > 1999999)
-	    sprintf (s, "Fst %4dM", ly_fire_cost / 1000000);
+	    snprintf (s, sizeof(s), "Fst %4dM", ly_fire_cost / 1000000);
 	else
-	    sprintf (s, "Fst %4dK", ly_fire_cost / 1000);
+	    snprintf (s, sizeof(s), "Fst %4dK", ly_fire_cost / 1000);
     }
     else
-	sprintf (s, "Fst %5d", ly_fire_cost);
+	snprintf (s, sizeof(s), "Fst %5d", ly_fire_cost);
     Fgl_write (b->x + 10, b->y + 80, s);
 
     if (ly_cricket_cost > 19999)
     {
 	if (ly_cricket_cost > 1999999)
-	    sprintf (s, "Ckt %4dM", ly_cricket_cost / 1000000);
+	    snprintf (s, sizeof(s), "Ckt %4dM", ly_cricket_cost / 1000000);
 	else
-	    sprintf (s, "Ckt %4dK", ly_cricket_cost / 1000);
+	    snprintf (s, sizeof(s), "Ckt %4dK", ly_cricket_cost / 1000);
     }
     else
-	sprintf (s, "Ckt %5d", ly_cricket_cost);
+	snprintf (s, sizeof(s), "Ckt %5d", ly_cricket_cost);
     Fgl_write (b->x + 10, b->y + 88, s);
 
     Fgl_setfontcolors (TEXT_BG_COLOUR, TEXT_FG_COLOUR);
@@ -1503,7 +1515,7 @@ draw_mini_screen_port (void)
        necessary, since we will completely overwrite the numbers below. */
     Fgl_fillbox (b->x, b->y, WORLD_SIDE_LEN, WORLD_SIDE_LEN, green (12));
     Fgl_setfontcolors (green (12), TEXT_FG_COLOUR);
-    sprintf (s, " Port %2d %2d", mini_screen_port_x, mini_screen_port_y);
+    snprintf (s, sizeof(s), " Port %2d %2d", mini_screen_port_x, mini_screen_port_y);
     Fgl_write (b->x + 4, b->y + 2, s);
     Fgl_write (b->x + 4, b->y + 16, " F C O G S");
     Fgl_write (b->x + 4, b->y + 26, " Buy   Sell");
@@ -1532,7 +1544,7 @@ draw_mini_screen_port (void)
 	}
 	else
 	    sprintf (sell, "%5d", l);
-	sprintf (s, "%s %s", buy, sell);
+	snprintf (s, sizeof(s), "%s %s", buy, sell);
 	Fgl_write (b->x + 10, b->y + 40 + i * 8, s);
     }
 
@@ -1737,23 +1749,23 @@ print_stats (void)
 	do_monthgraph (monthgraph_full_update);
 
 #if defined (STATS_WINDOW)
-	sprintf (s, "%5d ", housed_population + people_pool);
+	snprintf (s, sizeof(s), "%5d ", housed_population + people_pool);
 	Fgl_write (STATS_X + 8 * 11, STATS_Y, s);
 	i = ((tstarving_population / NUMOF_DAYS_IN_MONTH)
 	     * 1000) / ((tpopulation / NUMOF_DAYS_IN_MONTH) + 1);
-	sprintf (s, "%3d.%1d ", i / 10, i % 10);
+	snprintf (s, sizeof(s), "%3d.%1d ", i / 10, i % 10);
 	Fgl_write (STATS_X + 8 * 11, STATS_Y + 8, s);
-	sprintf (s, "%5d ", tfood_in_markets / NUMOF_DAYS_IN_MONTH);
+	snprintf (s, sizeof(s), "%5d ", tfood_in_markets / NUMOF_DAYS_IN_MONTH);
 	Fgl_write (STATS_X + 8 * 11, STATS_Y + 16, s);
 	i = ((tunemployed_population / NUMOF_DAYS_IN_MONTH)
 	     * 1000) / ((tpopulation / NUMOF_DAYS_IN_MONTH) + 1);
-	sprintf (s, "%3d.%1d ", i / 10, i % 10);
+	snprintf (s, sizeof(s), "%3d.%1d ", i / 10, i % 10);
 	Fgl_write (STATS_X + 8 * 11, STATS_Y + 24, s);
-	sprintf (s, "%5d ", numof_shanties);
+	snprintf (s, sizeof(s), "%5d ", numof_shanties);
 	Fgl_write (STATS_X + 8 * (12 + 20), STATS_Y + 24, s);
-	sprintf (s, "%5.1f ", (float) tech_level * 100.0 / MAX_TECH_LEVEL);
+	snprintf (s, sizeof(s), "%5.1f ", (float) tech_level * 100.0 / MAX_TECH_LEVEL);
 	Fgl_write (STATS_X + (20 + 12) * 8, STATS_Y, s);
-	sprintf (s, "%5d ", unnat_deaths);
+	snprintf (s, sizeof(s), "%5d ", unnat_deaths);
 	Fgl_write (STATS_X + (20 + 12) * 8, STATS_Y + 8, s);
 #endif
 
@@ -1794,6 +1806,9 @@ void
 print_total_money (void)
 {
     Rect* b = &scr.money;
+
+    if (headless_mode)
+	return;
     char str[MONEY_W / CHAR_WIDTH + 1];
     size_t count;
 
@@ -1819,7 +1834,7 @@ print_date (void)
 {
     char s[50];
     Rect* b = &scr.date;
-    sprintf (s, _("Date %s %04d "), current_month(total_time),
+    snprintf (s, sizeof(s), _("Date %s %04d "), current_month(total_time),
 	     current_year(total_time));
     Fgl_write (b->x, b->y, s);
 #if defined (WIN32)
@@ -1849,13 +1864,16 @@ print_time_for_year (void)
     char s[100];
     Rect* b = &scr.time_for_year;
 
+    if (headless_mode)
+	return;
+
 
     if (time_for_year > 3600.0)
-	sprintf (s, _("%s%5.1f MINS/year  V %s"), 
+	snprintf (s, sizeof(s), _("%s%5.1f MINS/year  V %s"), 
 		 cheat_flag ? _("TEST MODE") : "",
 		 time_for_year / 60.0, VERSION);
     else
-	sprintf (s, _("%s%5.1f secs/year  V %s "), 
+	snprintf (s, sizeof(s), _("%s%5.1f secs/year  V %s "), 
 		 cheat_flag ? _("TEST MODE") : "",
 		 time_for_year, VERSION);
     Fgl_write (b->x, b->y, s);
@@ -2103,7 +2121,7 @@ draw_cb_box (int row, int col, int checked)
 void
 draw_cb_template (int is_market_cb)
 {
-    int x, y, flags;
+    int x, y;
     char s[100];
     Rect* mcb = &scr.market_cb;
 
@@ -2111,7 +2129,6 @@ draw_cb_template (int is_market_cb)
     debug_printf ("Coords are %d %d %d %d\n",mcb->x,mcb->y,mcb->w,mcb->h);
     x = mcbx;	/* x & y are the market's pos. */
     y = mcby;
-    flags = MP_INFO(x,y).flags;
     Fgl_getbox (mcb->x, mcb->y, mcb->w, mcb->h, market_cb_gbuf);
     Fgl_fillbox (mcb->x, mcb->y, mcb->w, mcb->h, 28);
     draw_small_bezel(mcb->x+4, mcb->y+4, mcb->w-8, mcb->h-8, blue(0));
@@ -2125,7 +2142,7 @@ draw_cb_template (int is_market_cb)
     } else {
 	Fgl_write (mcb->x + 3 * 8, mcb->y + 8, _("Port"));
     }
-    sprintf (s, "%3d,%3d", x, y);
+    snprintf (s, sizeof(s), "%3d,%3d", x, y);
     Fgl_write (mcb->x + 7 * 8, mcb->y + 8, s);
     Fgl_hline (mcb->x + 2, mcb->y + 20, mcb->x + mcb->w - 2, 
 	       TEXT_FG_COLOUR);
@@ -2237,7 +2254,6 @@ ok_dial_box (char *fn, int good_bad, char *xs)
     int colour;
     char * ss;
     char s[LC_PATH_MAX];
-    int retval;
 
     if (suppress_ok_buttons != 0)
 	return;
@@ -2248,18 +2264,16 @@ ok_dial_box (char *fn, int good_bad, char *xs)
     else
 	colour = white (12);
     if (good_bad == RESULTS)
-	strcpy (s, fn);
+	snprintf (s, sizeof(s), "%s", fn);
     else
     {
-	strcpy (s, message_path);
-	strcat (s, fn);
+	snprintf (s, sizeof(s), "%s%s", message_path, fn);
     }
 
     if ((inf = fopen (s, "rb")) == NULL)
     {
 	printf ("Can't open message <%s> for OK dialog box\n", s);
-	strcpy (s, message_path);
-	strcat (s, "error.mes");
+	snprintf (s, sizeof(s), "%s%s", message_path, "error.mes");
 	if ((inf = fopen (s, "rb")) == NULL)
 	{
 	    fprintf (stderr,
@@ -2271,7 +2285,8 @@ ok_dial_box (char *fn, int good_bad, char *xs)
     stat(s,&statbuf);
 
     ss = (char *)lcalloc(statbuf.st_size + 1);
-    retval = fread(ss,sizeof(char),statbuf.st_size,inf);
+    if (fread(ss,sizeof(char),statbuf.st_size,inf) == 0 && statbuf.st_size > 0)
+        fprintf(stderr, "warning: short read on message <%s>\n", s);
     ss[statbuf.st_size] = '\0';
 
     undosify_string (ss);
@@ -2368,6 +2383,8 @@ void
 prog_box (char *title, int percent)
 {
     static int flag = 0, oldpercent = 0;
+    if (headless_mode)
+	return;
     char s[100];
     int i;
     if (flag == 0) {
@@ -2412,7 +2429,7 @@ prog_box (char *title, int percent)
 	oldpercent = percent;
 	Fgl_fillbox (PROGBOXX + (PROGBOXW / 2) - 20,
 		     PROGBOXY + 24, 40, 16, PROGBOX_BG_COLOUR);
-	sprintf (s, "%3d%%", percent);
+	snprintf (s, sizeof(s), "%3d%%", percent);
 	Fgl_setfontcolors (PROGBOX_BG_COLOUR, TEXT_FG_COLOUR);
 	Fgl_write (PROGBOXX + (PROGBOXW / 2) - 20, PROGBOXY + 24, s);
 	Fgl_setfontcolors (TEXT_BG_COLOUR, TEXT_FG_COLOUR);
@@ -2582,7 +2599,7 @@ void
 debug_writeval (int v)
 {
     char s[100];
-    sprintf (s, "%d  ", v);
+    snprintf (s, sizeof(s), "%d  ", v);
     Fgl_write (280, 471, s);
 }
 

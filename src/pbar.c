@@ -90,11 +90,19 @@ clear_pbar_text (Rect* pbar)
     Fgl_fillbox (pbar->x + pbar->w + 1, pbar->y, PBAR_TEXT_W, pbar->h, 0);
 }
 
+static int
+pbar_last_value (int p)
+{
+    if (p < 0 || p >= NUM_PBARS || pbars[p].data_size <= 0)
+	return 0;
+    return pbars[p].data[pbars[p].data_size - 1];
+}
+
 void 
 write_pbar_int (Rect* b, int val)
 {
     char s[16];
-    format_number5 (s, pbars[val].data[pbars[val].data_size-1]);
+    format_number5 (s, pbar_last_value (val));
     Fgl_setfontcolors (0, 255);
     Fgl_write (b->x + b->w + 25, b->y + 4, s);
     Fgl_setfontcolors (TEXT_BG_COLOUR, TEXT_FG_COLOUR);
@@ -146,6 +154,9 @@ refresh_pbars (void)
     Rect * b;
     char s[10];
 
+    if (headless_mode)
+	return;
+
     /* Population */
     b = &scr.pbar_pop;
     draw_pbar_new (b, pbar_adjust_pop(pbars[PPOP].diff));
@@ -156,7 +167,7 @@ refresh_pbars (void)
     draw_pbar_new (b, pbar_adjust_tech(pbars[PTECH].diff));
 
     snprintf (s, 10, "%5.1f", 
-	      (float) pbars[PTECH].data[pbars[PTECH].data_size - 1] * 
+	      (float) pbar_last_value (PTECH) *
 	      100.0 / MAX_TECH_LEVEL);
 
     write_pbar_text (b, s);

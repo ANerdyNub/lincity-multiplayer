@@ -1,11 +1,19 @@
-# Makefile for cross-compiling lincity 1.14.0 for Windows (x86-64)
-# Usage: make -f Makefile.win
+# Makefile for cross-compiling lincity 1.15.0 for Windows (x86-64)
+# Usage:
+#   make -f Makefile.win            # GUI release  -> lincity.exe
+#   make -f Makefile.win CONSOLE=1  # console debug -> lincity_console.exe
 
 CC = x86_64-w64-mingw32-gcc
 WINDRES = x86_64-w64-mingw32-windres
 CFLAGS = -O2 -Wall -DWIN32 -DWIN32_LEAN_AND_MEAN \
 	 -Isrc -Isrc/modules
+ifdef CONSOLE
+LDFLAGS =
+TARGET = lincity_console.exe
+else
 LDFLAGS = -mwindows
+TARGET = lincity.exe
+endif
 LIBS = -lgdi32 -luser32 -lcomctl32 -lcomdlg32 -lwinmm -lws2_32 -lpng -lz -lm
 
 ENGINE_OBJS = src/lclib.o src/power.o src/ldsvguts.o src/engine.o \
@@ -40,9 +48,9 @@ MODULE_OBJS = src/modules/rail.o src/modules/road.o src/modules/track.o \
 
 ALLOBJS = $(ENGINE_OBJS) $(GUI_OBJS) $(NET_OBJS) $(WIN32_OBJS) $(MODULE_OBJS)
 
-all: lincity.exe
+all: $(TARGET)
 
-lincity.exe: $(ALLOBJS) lincity.res
+$(TARGET): $(ALLOBJS) lincity.res
 	$(CC) $(LDFLAGS) -o $@ $(ALLOBJS) lincity.res $(LIBS)
 
 lincity.res: lincity.rc lincity.ico small.ico src/resource.h src/generic.h
@@ -64,6 +72,6 @@ $(MODULE_OBJS): src/modules/%.o: src/modules/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f src/*.o src/modules/*.o lincity.res lincity.exe
+	rm -f src/*.o src/modules/*.o lincity.res lincity.exe lincity_console.exe
 
 .PHONY: all clean

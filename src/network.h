@@ -5,6 +5,8 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
+#include <stddef.h>
+
 #ifndef CLOSE_SOCK
 #ifdef WIN32
 #define CLOSE_SOCK(fd) do { if ((fd) >= 0) { closesocket((SOCKET)(fd)); (fd) = -1; } } while(0)
@@ -16,8 +18,11 @@
 #define DEFAULT_SOCK_HOST "localhost"
 #define DEFAULT_SOCK_PORT 5123
 #define NETWORK_PORT 5123
-#define NETWORK_VERSION 1
+#define NETWORK_VERSION 2
 #define NETWORK_BUF_SIZE 4096
+/* The current map is 480000 bytes; 1 MiB leaves room for future growth. */
+#define NETWORK_MAX_MAP_BYTES (1024u * 1024u)
+#define NETWORK_IO_TIMEOUT_MS 5000u
 
 /* Protocol message types (first byte of text message) */
 #define MSG_HELLO    'H'
@@ -61,6 +66,7 @@
 /* ---- Server (host) functions ---- */
 int network_host_start(int port);
 int network_host_wait_client(int server_fd);
+int network_host_verify_hello(int client_fd);
 int network_host_send_map(int client_fd);
 int network_host_broadcast_action(int client_fd, char type, int x, int y, int val);
 int network_host_broadcast_money(int client_fd);
@@ -71,12 +77,22 @@ int network_host_broadcast_tech(int client_fd);
 void network_host_broadcast_stats(int client_fd);
 int network_host_send_info(int client_fd);
 int network_host_recv_action(int client_fd, char *action, int *x, int *y, int *val);
+void network_host_forget_client(int client_fd);
+int network_host_drop_client(int client_fd);
+void network_host_flush_all(void);
 void network_host_stop(int server_fd, int client_fd);
 
 /* ---- Client functions ---- */
 int network_client_connect(const char *host, int port);
 int network_client_recv_map(int fd);
 int network_client_send_action(int fd, char type, int x, int y, int val);
+int network_client_request_bulldoze(int fd, int x, int y);
+int network_client_request_mflags(int fd, int x, int y, int flags);
+int network_client_flush(int fd);
+unsigned long network_client_dropped_actions(void);
+int network_client_resync_needed(void);
+void network_client_clear_resync_needed(void);
+void network_client_reset_send_queue(void);
 int network_client_recv_msg(int fd, char *action, int *x, int *y, int *val);
 int network_client_recv_info(int fd);
 void network_client_disconnect(int fd);
@@ -87,13 +103,16 @@ void network_global_cleanup(void);
 
 /* ---- Shared utility ---- */
 int network_send_raw(int fd, const char *buf, int len);
-int network_recv_raw(int fd, char *buf, int len);
+int network_recv_raw(int fd, char *buf, size_t len);
 int network_send_text(int fd, const char *fmt, ...);
 int network_recv_line(int fd, char *buf, int bufsize);
 void network_close(int *fdp);
 
 /* ---- Multi-client helpers ---- */
 int network_host_broadcast_action_all(char type, int x, int y, int val);
+int network_host_broadcast_build_if_placed(char type, int x, int y, int val,
+                                           int result);
+int network_host_broadcast_bulldoze_if_removed(int x, int y, int removed);
 int network_host_send_map_all(void);
 void network_host_broadcast_money_all(void);
 void network_host_broadcast_pop_all(void);

@@ -91,132 +91,132 @@ init_modules (void)
 
     module_graphic[sbut[0]] = load_graphic ("buldoze-button.csi");
     module_type[sbut[0]] = CST_GREEN;
-    strcpy (module_help[sbut[0]], "bulldoze.hlp");
+    snprintf (module_help[sbut[0]], sizeof(module_help[sbut[0]]), "%s", "bulldoze.hlp");
 
     module_graphic[sbut[1]] = load_graphic ("powerline-button.csi");
     module_type[sbut[1]] = CST_POWERL_H_L;
-    strcpy (module_help[sbut[1]], "powerline.hlp");
+    snprintf (module_help[sbut[1]], sizeof(module_help[sbut[1]]), "%s", "powerline.hlp");
 
     module_graphic[sbut[2]] = load_graphic ("powerssolar-button.csi");
     module_type[sbut[2]] = CST_POWERS_SOLAR;
-    strcpy (module_help[sbut[2]], "powerssolar.hlp");
+    snprintf (module_help[sbut[2]], sizeof(module_help[sbut[2]]), "%s", "powerssolar.hlp");
 
     module_graphic[sbut[3]] = load_graphic ("substation-button.csi");
     module_type[sbut[3]] = CST_SUBSTATION_R;
-    strcpy (module_help[sbut[3]], "substation.hlp");
+    snprintf (module_help[sbut[3]], sizeof(module_help[sbut[3]]), "%s", "substation.hlp");
 
     module_graphic[sbut[4]] = load_graphic ("residence-button.csi");
     module_type[sbut[4]] = CST_RESIDENCE_LL;
-    strcpy (module_help[sbut[4]], "residential.hlp");
+    snprintf (module_help[sbut[4]], sizeof(module_help[sbut[4]]), "%s", "residential.hlp");
 
     module_graphic[sbut[5]] = load_graphic ("organic-farm-button.csi");
     module_type[sbut[5]] = CST_FARM_O0;
-    strcpy (module_help[sbut[5]], "farm.hlp");
+    snprintf (module_help[sbut[5]], sizeof(module_help[sbut[5]]), "%s", "farm.hlp");
 
     module_graphic[sbut[6]] = load_graphic ("market-button.csi");
     module_type[sbut[6]] = CST_MARKET_EMPTY;
-    strcpy (module_help[sbut[6]], "market.hlp");
+    snprintf (module_help[sbut[6]], sizeof(module_help[sbut[6]]), "%s", "market.hlp");
 
     module_help_flag[sbut[7]] = 1;        /* No help for track */
     module_graphic[sbut[7]] = load_graphic ("track-button.csi");
     module_type[sbut[7]] = CST_TRACK_LR;
-    strcpy (module_help[sbut[7]], "track.hlp");
+    snprintf (module_help[sbut[7]], sizeof(module_help[sbut[7]]), "%s", "track.hlp");
 
     module_graphic[sbut[8]] = load_graphic ("coalmine-button.csi");
     module_type[sbut[8]] = CST_COALMINE_EMPTY;
-    strcpy (module_help[sbut[8]], "coalmine.hlp");
+    snprintf (module_help[sbut[8]], sizeof(module_help[sbut[8]]), "%s", "coalmine.hlp");
 
     module_graphic[sbut[9]] = load_graphic ("rail-button.csi");
     module_type[sbut[9]] = CST_RAIL_LR;
-    strcpy (module_help[sbut[9]], "rail.hlp");
+    snprintf (module_help[sbut[9]], sizeof(module_help[sbut[9]]), "%s", "rail.hlp");
 
     module_graphic[sbut[10]] = load_graphic ("powerscoal-button.csi");
     module_type[sbut[10]] = CST_POWERS_COAL_EMPTY;
-    strcpy (module_help[sbut[10]], "powerscoal.hlp");
+    snprintf (module_help[sbut[10]], sizeof(module_help[sbut[10]]), "%s", "powerscoal.hlp");
 
     module_graphic[sbut[11]] = load_graphic ("road-button.csi");
     module_type[sbut[11]] = CST_ROAD_LR;
-    strcpy (module_help[sbut[11]], "road.hlp");
+    snprintf (module_help[sbut[11]], sizeof(module_help[sbut[11]]), "%s", "road.hlp");
 
     module_graphic[sbut[12]] = load_graphic ("industryl-button.csi");
     module_type[sbut[12]] = CST_INDUSTRY_L_C;
-    strcpy (module_help[sbut[12]], "industryl.hlp");
+    snprintf (module_help[sbut[12]], sizeof(module_help[sbut[12]]), "%s", "industryl.hlp");
 
     module_graphic[sbut[13]] = load_graphic ("university-button.csi");
     module_type[sbut[13]] = CST_UNIVERSITY;
-    strcpy (module_help[sbut[13]], "university.hlp");
+    snprintf (module_help[sbut[13]], sizeof(module_help[sbut[13]]), "%s", "university.hlp");
 
     module_graphic[sbut[14]] = load_graphic ("commune-button.csi");
     module_type[sbut[14]] = CST_COMMUNE_1;
-    strcpy (module_help[sbut[14]], "commune.hlp");
+    snprintf (module_help[sbut[14]], sizeof(module_help[sbut[14]]), "%s", "commune.hlp");
 
     module_graphic[sbut[15]] = load_graphic ("oremine-button.csi");
     module_type[sbut[15]] = CST_OREMINE_1;
-    strcpy (module_help[sbut[15]], "oremine.hlp");
+    snprintf (module_help[sbut[15]], sizeof(module_help[sbut[15]]), "%s", "oremine.hlp");
 
     module_graphic[sbut[16]] = load_graphic ("tip-button.csi");
     module_type[sbut[16]] = CST_TIP_0;
-    strcpy (module_help[sbut[16]], "tip.hlp");
+    snprintf (module_help[sbut[16]], sizeof(module_help[sbut[16]]), "%s", "tip.hlp");
 
     module_graphic[sbut[17]] = load_graphic ("port-button.csi");
     module_type[sbut[17]] = CST_EX_PORT;
-    strcpy (module_help[sbut[17]], "port.hlp");
+    snprintf (module_help[sbut[17]], sizeof(module_help[sbut[17]]), "%s", "port.hlp");
 
     module_graphic[sbut[18]] = load_graphic ("industryh-button.csi");
     module_type[sbut[18]] = CST_INDUSTRY_H_C;
-    strcpy (module_help[sbut[18]], "industryh.hlp");
+    snprintf (module_help[sbut[18]], sizeof(module_help[sbut[18]]), "%s", "industryh.hlp");
 
     module_graphic[sbut[19]] = load_graphic ("parkland-button.csi");
     module_type[sbut[19]] = CST_PARKLAND_PLANE;
-    strcpy (module_help[sbut[19]], "park.hlp");
+    snprintf (module_help[sbut[19]], sizeof(module_help[sbut[19]]), "%s", "park.hlp");
 
     module_graphic[sbut[20]] = load_graphic ("recycle-button.csi");
     module_type[sbut[20]] = CST_RECYCLE;
-    strcpy (module_help[sbut[20]], "recycle.hlp");
+    snprintf (module_help[sbut[20]], sizeof(module_help[sbut[20]]), "%s", "recycle.hlp");
 
     module_graphic[sbut[21]] = load_graphic ("water-button.csi");
     module_type[sbut[21]] = CST_WATER;
-    strcpy (module_help[sbut[21]], "river.hlp");
+    snprintf (module_help[sbut[21]], sizeof(module_help[sbut[21]]), "%s", "river.hlp");
 
     module_graphic[sbut[22]] = load_graphic ("health-button.csi");
     module_type[sbut[22]] = CST_HEALTH;
-    strcpy (module_help[sbut[22]], "health.hlp");
+    snprintf (module_help[sbut[22]], sizeof(module_help[sbut[22]]), "%s", "health.hlp");
 
     module_graphic[sbut[23]] = load_graphic ("rocket-button.csi");
     module_type[sbut[23]] = CST_ROCKET_1;
-    strcpy (module_help[sbut[23]], "rocket.hlp");
+    snprintf (module_help[sbut[23]], sizeof(module_help[sbut[23]]), "%s", "rocket.hlp");
 
     module_graphic[sbut[24]] = load_graphic ("windmill-button.csi");
     module_type[sbut[24]] = CST_WINDMILL_1_R;
-    strcpy (module_help[sbut[24]], "windmill.hlp");
+    snprintf (module_help[sbut[24]], sizeof(module_help[sbut[24]]), "%s", "windmill.hlp");
 
     module_graphic[sbut[25]] = load_graphic ("monument-button.csi");
     module_type[sbut[25]] = CST_MONUMENT_0;
-    strcpy (module_help[sbut[25]], "monument.hlp");
+    snprintf (module_help[sbut[25]], sizeof(module_help[sbut[25]]), "%s", "monument.hlp");
 
     module_graphic[sbut[26]] = load_graphic ("school-button.csi");
     module_type[sbut[26]] = CST_SCHOOL;
-    strcpy (module_help[sbut[26]], "school.hlp");
+    snprintf (module_help[sbut[26]], sizeof(module_help[sbut[26]]), "%s", "school.hlp");
 
     module_graphic[sbut[27]] = load_graphic ("blacksmith-button.csi");
     module_type[sbut[27]] = CST_BLACKSMITH_0;
-    strcpy (module_help[sbut[27]], "blacksmith.hlp");
+    snprintf (module_help[sbut[27]], sizeof(module_help[sbut[27]]), "%s", "blacksmith.hlp");
 
     module_graphic[sbut[28]] = load_graphic ("mill-button.csi");
     module_type[sbut[28]] = CST_MILL_0;
-    strcpy (module_help[sbut[28]], "mill.hlp");
+    snprintf (module_help[sbut[28]], sizeof(module_help[sbut[28]]), "%s", "mill.hlp");
 
     module_graphic[sbut[29]] = load_graphic ("pottery-button.csi");
     module_type[sbut[29]] = CST_POTTERY_0;
-    strcpy (module_help[sbut[29]], "pottery.hlp");
+    snprintf (module_help[sbut[29]], sizeof(module_help[sbut[29]]), "%s", "pottery.hlp");
 
     module_graphic[sbut[30]] = load_graphic ("firestation-button.csi");
     module_type[sbut[30]] = CST_FIRESTATION_1;
-    strcpy (module_help[sbut[30]], "firestation.hlp");
+    snprintf (module_help[sbut[30]], sizeof(module_help[sbut[30]]), "%s", "firestation.hlp");
 
     module_graphic[sbut[31]] = load_graphic ("cricket-button.csi");
     module_type[sbut[31]] = CST_CRICKET_1;
-    strcpy (module_help[sbut[31]], "cricket.hlp");
+    snprintf (module_help[sbut[31]], sizeof(module_help[sbut[31]]), "%s", "cricket.hlp");
 
 
 

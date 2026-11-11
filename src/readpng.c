@@ -65,6 +65,7 @@ load_png_graphics (char *txt_filename, char *png_filename)
 
     if (png_ptr == NULL) {
 	fclose(fp);
+	fclose(txt_fp);
 	return (ERROR);
     }
 
@@ -72,6 +73,7 @@ load_png_graphics (char *txt_filename, char *png_filename)
     info_ptr = png_create_info_struct(png_ptr);
     if (info_ptr == NULL) {
 	fclose(fp);
+	fclose(txt_fp);
 #if defined (commentout)
 	png_destroy_read_struct(&png_ptr, png_infopp_NULL, png_infopp_NULL);
 #endif
@@ -90,6 +92,7 @@ load_png_graphics (char *txt_filename, char *png_filename)
 #endif
 	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 	fclose(fp);
+	fclose(txt_fp);
 	/* If we get here, we had a problem reading the file */
 	return (ERROR);
     }
@@ -148,6 +151,7 @@ load_png_graphics (char *txt_filename, char *png_filename)
 #endif
 	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 	fclose(fp);
+	fclose(txt_fp);
 	/* If we get here, we had a problem reading the file */
 	return (ERROR);
    }
@@ -161,12 +165,19 @@ load_png_graphics (char *txt_filename, char *png_filename)
 #endif
 	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 	fclose(fp);
+	fclose(txt_fp);
 	/* If we get here, we had a problem reading the file */
 	return (ERROR);
    }
 
     /* The easiest way to read the image: */
     row_pointers = malloc (sizeof(void*)*height);
+    if (row_pointers == NULL) {
+	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+	fclose(fp);
+	fclose(txt_fp);
+	return (ERROR);
+    }
     for (row = 0; row < height; row++) {
 	row_pointers[row] = png_malloc(png_ptr, 
 	    png_get_rowbytes(png_ptr, info_ptr));

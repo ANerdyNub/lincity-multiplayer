@@ -29,6 +29,7 @@
 #include "screen.h"
 #include "power.h"
 #include "stats.h"
+#include "validation.h"
 #include "pbar.h"
 #include "module_buttons.h"
 
@@ -579,19 +580,26 @@ count_groups (int g)
 }
 
 void 
-count_all_groups (int* group_count)
+count_all_groups (int* group_count, int group_count_len)
 {
     int x, y;
-    unsigned short t, g;
-    for (x = 0; x < NUM_OF_GROUPS; x++)
+    int t, g;
+    if (!group_count || group_count_len <= 0)
+	return;
+    for (x = 0; x < group_count_len; x++)
 	group_count[x] = 0;
     for (y = 0; y < WORLD_SIDE_LEN; y++) {
 	for (x = 0; x < WORLD_SIDE_LEN; x++) {
 	    t = MP_TYPE(x,y);
-	    if (t != CST_USED && t != CST_GREEN) {
-		g = get_group_of_type(t);
+	    g = MP_GROUP(x,y);
+	    if (!type_ok ((short) t) || !group_ok (g))
+		continue;
+	    if (get_group_of_type ((short) t) != g)
+		continue;
+	    if (g >= group_count_len)
+		continue;
+	    if (t != CST_USED && t != CST_GREEN)
 		group_count[g]++;
-	    }
 	}
     }
 }

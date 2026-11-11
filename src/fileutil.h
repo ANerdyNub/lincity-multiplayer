@@ -33,7 +33,6 @@ extern char lc_textdomain_directory[LC_PATH_MAX];
 extern char lincityrc_file[LC_PATH_MAX];
 extern char given_scene[LC_PATH_MAX];
 
-void gunzip_file (char *f1, char *f2);
 int file_exists (char *filename);
 int directory_exists (char *dir);
 char* load_graphic(char *s);

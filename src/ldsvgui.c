@@ -361,7 +361,7 @@ do_network_screen (void)
 		while (choosing) {
 		    Fgl_fillbox (mw->x, mw->y, mw->w, mw->h, SAVE_BG_COLOUR);
 		    Fgl_setfontcolors (SAVE_BG_COLOUR, TEXT_FG_COLOUR);
-		    sprintf (s, _("Max players (1=manual, 2-4): %d"),
+		    snprintf (s, sizeof(s), _("Max players (1=manual, 2-4): %d"),
 			     network_max_clients);
 		    Fgl_write (mw->x + 100, mw->y + 40,  s);
 		    Fgl_write (mw->x + 100, mw->y + 80,  _("+ / - to change"));
@@ -427,6 +427,10 @@ do_network_screen (void)
 			    NETLOG("host: accept returned fd=%d, num_clients=%d max=%d\n",
 				   new_fd, network_num_clients, network_max_clients);
 			    if (new_fd >= 0 && network_num_clients < MAX_CLIENTS) {
+				if (network_host_verify_hello (new_fd) < 0) {
+				    CLOSE_SOCK (new_fd);
+				    continue;
+				}
 				if (network_socket < 0)
 				    network_socket = new_fd;
 				else {
@@ -450,7 +454,7 @@ do_network_screen (void)
 		    Fgl_setfontcolors (SAVE_BG_COLOUR, TEXT_FG_COLOUR);
 		    Fgl_write (mw->x + 100, mw->y + 40,  _("Lobby - waiting for players"));
 		    Fgl_write (mw->x + 100, mw->y + 60,  _("Port 5123"));
-		    sprintf (s, _("Connected: %d/%d"), network_num_clients, network_max_clients);
+		    snprintf (s, sizeof(s), _("Connected: %d/%d"), network_num_clients, network_max_clients);
 		    Fgl_write (mw->x + 100, mw->y + 80,  s);
 		    if (network_num_clients < network_max_clients)
 			Fgl_write (mw->x + 100, mw->y + 120, _("Waiting for more players..."));
@@ -509,8 +513,8 @@ do_network_screen (void)
 	}
 
 	case '2':
-	    strcpy (host, DEFAULT_SOCK_HOST);
-	    sprintf (port_str, "%d", DEFAULT_SOCK_PORT);
+	    snprintf (host, sizeof(host), "%s", DEFAULT_SOCK_HOST);
+	    snprintf (port_str, sizeof(port_str), "%d", DEFAULT_SOCK_PORT);
 	    Fgl_write (mw->x + 100, mw->y + 140, _("Enter host address:"));
 	    redraw_mouse ();
 	    input_network_host (host);
@@ -631,6 +635,105 @@ do_network_screen (void)
     redraw_mouse ();
     NETLOG("do_network_screen: returning\n");
 }
+
+/* Test/CLI host entry point: no lobby screen or keystrokes.  The fixed
+   player count is the auto-start threshold; clients connect after the
+   server is listening and receive the map once all of them are present. */
+void
+do_network_host (int max_clients, int origin, int seed)
+{
+    int server_fd;
+
+    if (max_clients < 1)
+        max_clients = 1;
+    if (max_clients > MAX_CLIENTS)
+        max_clients = MAX_CLIENTS;
+
+    if (seed >= 0)
+        srand ((unsigned int) seed);
+    new_city (&main_screen_originx, &main_screen_originy, 1);
+    if (origin >= 0) {
+        main_screen_originx = origin;
+        main_screen_originy = origin;
+    }
+
+    server_fd = network_host_start (DEFAULT_SOCK_PORT);
+    if (server_fd < 0) {
+        fprintf (stderr, "network: headless host could not listen on %d\n",
+                 DEFAULT_SOCK_PORT);
+        fflush (stderr);
+        network_game = 0;
+        return;
+    }
+    network_socket = -1;
+    network_num_clients = 0;
+    network_is_host = 1;
+    network_max_clients = max_clients;
+    for (int i = 0; i < MAX_CLIENTS - 1; i++)
+        network_extra_fds[i] = -1;
+
+    fprintf (stderr, "network: headless host waiting for %d client(s)\n",
+             max_clients);
+    fflush (stderr);
+
+    while (network_num_clients < max_clients) {
+        struct sockaddr_in cliaddr;
+        socklen_t addrlen = sizeof (cliaddr);
+        fd_set rfds;
+        struct timeval tv;
+        int new_fd;
+
+        FD_ZERO (&rfds);
+        FD_SET (server_fd, &rfds);
+        tv.tv_sec = 0;
+        tv.tv_usec = 100000;
+        if (select (server_fd + 1, &rfds, NULL, NULL, &tv) <= 0)
+            continue;
+        new_fd = accept (server_fd, (struct sockaddr *) &cliaddr, &addrlen);
+        if (new_fd < 0)
+            continue;
+        if (network_host_verify_hello (new_fd) < 0) {
+            CLOSE_SOCK (new_fd);
+            continue;
+        }
+        if (network_socket < 0)
+            network_socket = new_fd;
+        else {
+            int slot = -1;
+            for (int i = 0; i < MAX_CLIENTS - 1; i++) {
+                if (network_extra_fds[i] < 0) {
+                    slot = i;
+                    break;
+                }
+            }
+            if (slot < 0) {
+                CLOSE_SOCK (new_fd);
+                continue;
+            }
+            network_extra_fds[slot] = new_fd;
+        }
+        network_num_clients++;
+        fprintf (stderr, "network: headless host accepted fd=%d (%d/%d)\n",
+                 new_fd, network_num_clients, max_clients);
+        fflush (stderr);
+    }
+
+    if (network_host_send_map_all () < 0) {
+        fprintf (stderr, "network: headless host map send failed\n");
+        fflush (stderr);
+        CLOSE_SOCK (network_socket);
+        for (int i = 0; i < MAX_CLIENTS - 1; i++)
+            CLOSE_SOCK (network_extra_fds[i]);
+        CLOSE_SOCK (server_fd);
+        network_game = 0;
+        return;
+    }
+    CLOSE_SOCK (server_fd);
+    network_game = 1;
+    fprintf (stderr, "network: headless host game started with %d client(s)\n",
+             network_num_clients);
+    fflush (stderr);
+}
 #endif
 
 void
@@ -678,8 +781,7 @@ do_save_city ()
 	strcpy (s, &(save_names[c - '0'][2]));
 	input_save_filename (s);
 	remove_scene (save_names[c - '0']);
-	sprintf (save_names[c - '0'], "%d_", c - '0');
-	strcat (save_names[c - '0'], s);
+	snprintf (save_names[c - '0'], sizeof(save_names[c - '0']), "%d_%s", c - '0', s);
 	Fgl_fillbox (mw->x + 5, mw->y + 300
 		     ,360, 30, SAVE_BG_COLOUR);
 	Fgl_write (mw->x + 70, mw->y + 310
@@ -700,11 +802,11 @@ void
 load_opening_city (char *s)
 {
   char *cname = (char *) malloc (strlen (opening_path) + strlen (s) + 2);
-  sprintf (cname, "%s%c%s", opening_path, PATH_SLASH, s);
+  snprintf (cname, strlen (opening_path) + strlen (s) + 2, "%s%c%s", opening_path, PATH_SLASH, s);
   load_city (cname);
   free (cname);
 
-  strcpy (given_scene, s);
+  snprintf (given_scene, sizeof(given_scene), "%s", s);
   db_flag = 0;
   cs_mouse_handler (0, -1, 0);
   cs_mouse_handler (0, 1, 0);
@@ -823,7 +925,7 @@ draw_save_dir (int bg_colour)
 #endif
     if ((s = (char *) malloc (lc_save_dir_len + strlen (LC_SAVE_DIR) + 64)) == 0)
 	malloc_failure ();
-    strcpy (s, lc_save_dir);
+    snprintf (s, lc_save_dir_len + strlen (LC_SAVE_DIR) + 64, "%s", lc_save_dir);
     if (!directory_exists (s))
     {
 	printf (_("Couldn't find the save directory %s\n"), s);
@@ -835,12 +937,18 @@ draw_save_dir (int bg_colour)
     _chdir (s);
 #else
     dp = opendir (s);
+    if (dp == NULL)
+    {
+	printf (_("Couldn't open the save directory %s\n"), s);
+	free (s);
+	return;
+    }
 #endif
     for (i = 1; i < 10; i++)
     {
 	save_names[i][0] = 0;
 #if defined (WIN32)
-	sprintf (filespec, "%d_*", i);
+	snprintf (filespec, sizeof(filespec), "%d_*", i);
 #if defined (_MSC_VER) || defined(__MINGW32__)
 	fh = _findfirst (filespec, &fileinfo);
 #elif defined (__BORLANDC__)
@@ -856,20 +964,20 @@ draw_save_dir (int bg_colour)
 		    && *((ep->d_name) + 1) == '_')
 		{
 #endif
-		    sprintf (s2, "%2d ", i);
+		    snprintf (s2, sizeof(s2), "%2d ", i);
 #if defined (WIN32)
 #if defined (_MSC_VER) || defined(__MINGW32__)
-		    strncpy (save_names[i], fileinfo.name, 40);
+		    snprintf (save_names[i], sizeof(save_names[i]), "%s", fileinfo.name);
 #elif defined (__BORLANDC__)
-		    strncpy (save_names[i], fileinfo.ff_name, 40);
+		    snprintf (save_names[i], sizeof(save_names[i]), "%s", fileinfo.ff_name);
 #endif
 #else /* UNIX */
-		    strncpy (save_names[i], ep->d_name, 40);
+		    snprintf (save_names[i], sizeof(save_names[i]), "%s", ep->d_name);
 #endif
 		    if (strlen (save_names[i]) > 2)
-			strncat (s2, &(save_names[i][2]), 40);
+			snprintf (s2 + strlen(s2), sizeof(s2) - strlen(s2), "%s", &(save_names[i][2]));
 		    else
-			strcat (s2, "???");
+			snprintf (s2 + strlen(s2), sizeof(s2) - strlen(s2), "%s", "???");
 #if defined (WIN32)
 #if defined (_MSC_VER) || defined(__MINGW32__)
 		    _findclose (fh);
@@ -882,7 +990,7 @@ draw_save_dir (int bg_colour)
 	}
 #endif
 	if (strlen (save_names[i]) < 1)
-	    sprintf (s2, " %d .....", i);
+	    snprintf (s2, sizeof(s2), " %d .....", i);
 	else
 	{
 	    l = strlen (s2);

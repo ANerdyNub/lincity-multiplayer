@@ -6,6 +6,7 @@
 #ifndef __engine_h__
 #define __engine_h__
 
+int placement_ok (int x, int y, short type);
 int place_item (int x, int y, short type);
 int bulldoze_item (int x, int y);
 void do_coal_survey (void);

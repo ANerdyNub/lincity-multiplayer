@@ -8,6 +8,7 @@
 #include "fileutil.h"
 
 Map map;
+int headless_mode = 0;
 
 int mappoint_array_x[WORLD_SIDE_LEN];
 int mappoint_array_y[WORLD_SIDE_LEN];

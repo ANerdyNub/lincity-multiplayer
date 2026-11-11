@@ -173,6 +173,14 @@
 #define FLAG_MULTI_TRANS_PREV   (0x4000000)
 #define FLAG_POWER_LINE         (0x8000000)
 
+/* Bits that the market/port buy/sell callback may change. */
+#define FLAG_TRADE_MASK         (FLAG_MB_FOOD | FLAG_MS_FOOD \
+                                | FLAG_MB_JOBS | FLAG_MS_JOBS \
+                                | FLAG_MB_COAL | FLAG_MS_COAL \
+                                | FLAG_MB_ORE | FLAG_MS_ORE \
+                                | FLAG_MB_GOODS | FLAG_MS_GOODS \
+                                | FLAG_MB_STEEL | FLAG_MS_STEEL)
+
 #define T_FOOD  0
 #define T_JOBS  1
 #define T_COAL  2
@@ -1155,9 +1163,10 @@ extern void do_error (char *);
 extern void do_save_city (void);
 extern void remove_scene (char *);
 extern void save_city (char *);
+extern void save_city_to_path (char *);
 extern int do_load_city (void);
 extern void load_opening_city (char *);
-extern void load_city (char *);
+extern int load_city (char *);
 extern void reset_animation_times (void);
 extern void coal_reserve_setup (void);
 extern void ore_reserve_setup (void);
@@ -1315,7 +1324,7 @@ extern void prog_box (char *, int);
 void initialize_tax_rates (void);
 void set_mappoint (int x, int y, short selected_type);
 void set_mappoint_used (int, int, int, int);
-int no_credit_build (int selected_type);
+int no_credit_build (int selected_group, int cost);
 void set_mappoint_ints (int fromx, int fromy, int x, int y);
 void new_city (int* originx, int* originy, int random_village);
 extern void engine_do_time_step (void);

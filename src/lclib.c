@@ -70,18 +70,16 @@ num_to_ansi(char * s, size_t size, long num)
     default: triplets = '?'; break;
     }
       
-  if (size == 4) { /* to make up for format_pos_number4.  Eeewwwwwww. */ 
-      if (numf < 10) { 
-	  snprintf(s, size + 1, "%1.1f%c", numf, triplets);
-      } else {
-	  snprintf(s,size + 1, "%3.0f%c", numf, triplets);
-      }
-  } else {
+  {
+      char tmp[64];
+
       if (triplets == ' ') {
-	  snprintf(s, size, "%3.1f", numf);
+	  snprintf(tmp, sizeof tmp, "%3.1f", numf);
       } else {
-	  snprintf(s, size, "%3.1f%c", numf, triplets);
+	  snprintf(tmp, sizeof tmp, "%3.1f%c", numf, triplets);
       }
+      /* size is the buffer size, including the terminator. */
+      snprintf(s, size, "%s", tmp);
   }
 }
 
@@ -176,12 +174,6 @@ pad_with_blanks (char* str, int size)
 }
 
 void 
-format_pos_number4 (char* str, int num)
-{
-  num_to_ansi(str, 4, num);
-}
-
-void 
 format_power(char * str, size_t size, long power)
 {
   num_to_ansi_unit(str, size, power, 'w');
@@ -205,7 +197,7 @@ lcalloc (size_t size)
   void * tmp;
   tmp = malloc(size);
   if (tmp == NULL) {
-    printf("couldn't malloc %d bytes!  Dying.\n",size);
+    printf("couldn't malloc %zu bytes!  Dying.\n",size);
     exit(-1);
   }
   

@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#if !defined (WIN32)
+#include <pwd.h>
+#endif
 #include "lcstring.h"
 #ifdef LC_X11
 #include <X11/Xlib.h>
@@ -1456,12 +1459,23 @@ void
 lincityrc (void)
 {
   char s[256], s1[256];
+  const char *home;
   int i;
   FILE *rc;
 
-  strcpy (s, getenv ("HOME"));
-  strcat (s, "/");
-  strcat (s, ".lincityrc");
+  home = getenv ("HOME");
+  if (home == NULL || home[0] == '\0')
+    {
+      struct passwd *pw = getpwuid (getuid ());
+      if (pw != NULL && pw->pw_dir != NULL && pw->pw_dir[0] != '\0')
+	home = pw->pw_dir;
+    }
+  if (home == NULL || home[0] == '\0')
+    {
+      printf ("HOME is not set and no home directory was found for this user\n");
+      exit (1);
+    }
+  snprintf (s, sizeof s, "%s/.lincityrc", home);
   if ((rc = fopen (s, "r")) == 0)
     {
       do

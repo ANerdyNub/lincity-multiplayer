@@ -153,11 +153,10 @@ dialog_box(int arg_color, int argc, ...)
 		db_entry[dbn].text = (char *)lcalloc(1 + linelen);
 		strncpy(db_entry[dbn].text,working_str,linelen);
 		db_entry[dbn].text[linelen] = '\0';
-		working_str = (newline + 1) != '\0' ? newline + 1 : NULL;
+		working_str = *(newline + 1) != '\0' ? newline + 1 : NULL;
 	    } else {
 		db_entry[dbn].text = (char *)lcalloc(1 + strlen(working_str));
-		strncpy(db_entry[dbn].text,working_str,strlen(working_str));
-		db_entry[dbn].text[strlen(working_str)] = '\0';
+		strcpy(db_entry[dbn].text,working_str);
 		working_str = NULL;
 	    }
 
@@ -259,14 +258,14 @@ dialog_box(int arg_color, int argc, ...)
       if (key == 0) continue;
 
       if (key == 10 || key == 13 || key == ' ') /* default button */
-	  for (i = 0; i <= dbn; i++) {
+	  for (i = 0; i < dbn; i++) {
 	      if (db_entry[i].type == 2) {
 		  dialog_close(db_entry[i].retval);
 		  break;
 	      }
 	  }
       else
-	  for (i = 0; i <= dbn; i++) {
+	  for (i = 0; i < dbn; i++) {
 	      if (key == db_entry[i].retval) {
 		  dialog_close(key);
 		  break;

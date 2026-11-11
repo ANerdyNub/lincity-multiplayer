@@ -59,10 +59,14 @@ void
 remove_a_substation (int x, int y)
 {
   int q;
+  if (numof_substations <= 0)
+    return;
   for (q = 0; q < numof_substations; q++)
     if (substationx[q] == x && substationy[q] == y)
       break;
-  for (; q < numof_substations; q++)
+  if (q == numof_substations)
+    return;
+  for (; q + 1 < numof_substations; q++)
     {
       substationx[q] = substationx[q + 1];
       substationy[q] = substationy[q + 1];
@@ -74,6 +78,8 @@ void
 shuffle_substations (void)
 {
   int q, x, r, m;
+  if (numof_substations < 2)
+    return;
   m = (numof_substations / 2) + 1;
   for (x = 0; x < m; x++)
     {

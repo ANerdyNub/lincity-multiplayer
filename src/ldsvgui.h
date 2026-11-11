@@ -9,6 +9,7 @@
 void do_prefs_mouse (int, int, int);
 void do_prefs_screen (void);
 void do_network_screen (void);
+void do_network_host (int, int, int);
 void close_prefs_screen (void);
 
 #endif	/* __ldsvgui_h__ */
