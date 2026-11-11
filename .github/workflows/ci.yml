@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: make check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential autoconf automake libtool pkg-config gettext \
+            libx11-dev libxext-dev libpng-dev zlib1g-dev \
+            xvfb xauth x11-utils xdotool python3
+
+      - name: Configure
+        run: ./configure
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Unit and headless checks
+        run: make check
+
+  network-asan:
+    name: ASan+UBSan network matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential autoconf automake libtool pkg-config gettext \
+            libx11-dev libxext-dev libpng-dev zlib1g-dev \
+            xvfb xauth x11-utils xdotool python3
+
+      - name: Configure with sanitizers
+        run: |
+          ./configure \
+            CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1" \
+            LDFLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Allow the matrix harness to inspect its client processes
+        run: sudo sysctl -w kernel.yama.ptrace_scope=0
+
+      - name: Run the full network matrix under Xvfb
+        run: |
+          xvfb-run -a -s "-screen 0 1024x768x24" \
+            tests/run_network_matrix.sh \
+            --binary ./xlincity \
+            --log-dir "$RUNNER_TEMP/network-matrix"
+
+      - name: Upload matrix logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-matrix-logs
+          path: ${{ runner.temp }}/network-matrix
+          if-no-files-found: ignore

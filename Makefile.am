@@ -37,7 +37,7 @@ noinst_HEADERS = \
 # Directories that need to have CVS and ca subdirectories removed
 LC_DISTDIRS = \
 	help icons messages \
-	old.Makefiles opening tools
+	opening tools
 
 ##EXTRA_DIST = config.rpath  $(LC_DISTDIRS) \
 
@@ -209,5 +209,8 @@ x_picedit.o: src/picedit.c
 vga_picedit.o: src/picedit.c
 	$(COMPILE) $(X_DEFS) -o vga_picedit.o -c src/picedit.c
 
+
+check-local:
+	$(SHELL) $(srcdir)/tests/run_unit.sh
 
 ACLOCAL_AMFLAGS = -I m4

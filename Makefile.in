@@ -539,7 +539,7 @@ noinst_HEADERS = \
 # Directories that need to have CVS and ca subdirectories removed
 LC_DISTDIRS = \
 	help icons messages \
-	old.Makefiles opening tools
+	opening tools
 
 EXTRA_DIST = $(LC_DISTDIRS) \
 	colour.pal \
@@ -1492,6 +1492,7 @@ distcleancheck: distclean
 	       $(distcleancheck_listfiles) ; \
 	       exit 1; } >&2
 check-am: all-am
+	$(MAKE) $(AM_MAKEFLAGS) check-local
 check: check-recursive
 all-am: Makefile $(PROGRAMS) $(LTLIBRARIES) $(MANS) $(DATA) $(HEADERS) \
 		config.h
@@ -1704,10 +1705,10 @@ uninstall-am: uninstall-binPROGRAMS uninstall-libLTLIBRARIES \
 
 uninstall-man: uninstall-man6
 
-.MAKE: $(am__recursive_targets) all install-am install-strip
+.MAKE: $(am__recursive_targets) all check-am install-am install-strip
 
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
-	am--depfiles am--refresh check check-am clean \
+	am--depfiles am--refresh check check-am check-local clean \
 	clean-binPROGRAMS clean-cscope clean-generic \
 	clean-libLTLIBRARIES clean-libtool cscope cscopelist-am ctags \
 	ctags-am dist dist-all dist-bzip2 dist-gzip dist-hook \
@@ -1791,6 +1792,9 @@ x_picedit.o: src/picedit.c
 
 vga_picedit.o: src/picedit.c
 	$(COMPILE) $(X_DEFS) -o vga_picedit.o -c src/picedit.c
+
+check-local:
+	$(SHELL) $(srcdir)/tests/run_unit.sh
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
