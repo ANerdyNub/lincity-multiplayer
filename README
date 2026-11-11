@@ -262,8 +262,8 @@ COMPILATION UNDER WIN32
 
 Cross-compile using MinGW-w64:
 
-      make -f Makefile.win          # release (no console)
-      make -f Makefile.win.con      # debug (with console)
+      make -f Makefile.win            # release (no console)
+      make -f Makefile.win CONSOLE=1  # debug (with console)
 
 
 BUGS
@@ -271,7 +271,7 @@ BUGS
 
 Report bugs at: https://github.com/ANerdyNub/lincity-multiplayer/issues
 
-Also see the file TODO.
+Also see the file `meta/TODO`.
 
 
 HISTORY
@@ -325,6 +325,6 @@ THANK YOU
 This game could not have been possible without the patches, scripts, 
 bug reports, suggestions, and other contributions from hundreds of 
 developers and users around the world.  Please read the file 
-'Acknowledgements' for details.
+`meta/Acknowledgements` for details.
 
 And a special thanks to *you* for playing and enjoying lincity!

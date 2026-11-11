@@ -43,13 +43,11 @@ LC_DISTDIRS = \
 
 EXTRA_DIST = $(LC_DISTDIRS) \
 	colour.pal \
-	lincity.ico  small.ico lincity.rc \
-	CHANGES COPYRIGHT Acknowledgements \
-	config.sh \
-	README.profiling \
-	lincity.6
+	win32/lincity.ico  win32/small.ico win32/lincity.rc \
+	meta/CHANGES meta/COPYRIGHT meta/Acknowledgements meta/TODO \
+	man/lincity.6
 
-man_MANS = lincity.6
+man_MANS = man/lincity.6
 ## pkgdata_DATA = help/* icons/* messages/* messages/ca/* opening/* colour.pal
 ## pkgdata_DATA = help/* icons/* messages/* opening/* colour.pal
 ## nobase_pkgdata_DATA = help/* icons/* messages/ca/* messages/* opening/* colour.pal

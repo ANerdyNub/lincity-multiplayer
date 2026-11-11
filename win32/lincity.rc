@@ -32,8 +32,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-SMALL                   ICON    DISCARDABLE     "small.ico"
-LINCITY                 ICON    DISCARDABLE     "lincity.ico"
+SMALL                   ICON    DISCARDABLE     "win32/small.ico"
+LINCITY                 ICON    DISCARDABLE     "win32/lincity.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //

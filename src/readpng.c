@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------- *
  * readpng.c
- * This file is part of lincity (see COPYRIGHT for copyright information).
+ * This file is part of lincity (see meta/COPYRIGHT for copyright information).
  * ---------------------------------------------------------------------- */
 #include <stdlib.h>
 #include <string.h>

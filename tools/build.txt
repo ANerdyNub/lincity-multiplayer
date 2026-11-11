@@ -31,11 +31,11 @@ Preliminaries:
 
   1.1)   For point version, update version number in:
             configure.ac
-            confw32.h
+            src/confw32.h
   1.2)   For full version, also update version number in:
             README
-            lincity.rc
-  2)     Update CHANGES file
+            win32/lincity.rc
+  2)     Update meta/CHANGES file
   3)     Tag in CVS
             cvs rtag -r HEAD lincity-1_12-pre55 lincity
 
@@ -55,12 +55,12 @@ Make the Win package (version 1.11):
   11)    make distclean
   11.1)  Delete lincity.ncb and lincity.aps
   11.2)  Delete the Release and Debug directories
-  12)    Run tarsrc.sh (this script might need fixing)
+  12)    Create the source tarball with configure and make dist
   13)    Make sure that the opening files are *not* gzip'ped
             open.tga
             bad_times.scn
             good_times.scn
-  14)    Copy ../source.tgz into lincity directory
+  14)    The source tarball is lincity-*.tar.gz in this directory
   15)    zip -r lincity109.zip lincity109
   16)    Done!
 

@@ -45,3 +45,7 @@ tests/test_*
 
 # Uncompressed fuzz seeds (the tracked corpus is .scn.gz)
 tests/fuzz_save_corpus/*.scn
+
+# Generated distribution artifacts
+lincity-*.tar.gz
+po/remove-potcdate.sed

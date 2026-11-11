@@ -50,11 +50,11 @@ ALLOBJS = $(ENGINE_OBJS) $(GUI_OBJS) $(NET_OBJS) $(WIN32_OBJS) $(MODULE_OBJS)
 
 all: $(TARGET)
 
-$(TARGET): $(ALLOBJS) lincity.res
-	$(CC) $(LDFLAGS) -o $@ $(ALLOBJS) lincity.res $(LIBS)
+$(TARGET): $(ALLOBJS) win32/lincity.res
+	$(CC) $(LDFLAGS) -o $@ $(ALLOBJS) win32/lincity.res $(LIBS)
 
-lincity.res: lincity.rc lincity.ico small.ico src/resource.h src/generic.h
-	$(WINDRES) --include-dir src lincity.rc -O coff -o $@
+win32/lincity.res: win32/lincity.rc win32/lincity.ico win32/small.ico src/resource.h src/generic.h
+	$(WINDRES) --include-dir src win32/lincity.rc -O coff -o $@
 
 $(ENGINE_OBJS): src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -72,6 +72,6 @@ $(MODULE_OBJS): src/modules/%.o: src/modules/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f src/*.o src/modules/*.o lincity.res lincity.exe lincity_console.exe
+	rm -f src/*.o src/modules/*.o win32/lincity.res lincity.exe lincity_console.exe
 
 .PHONY: all clean

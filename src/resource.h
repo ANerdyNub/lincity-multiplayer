@@ -1,6 +1,6 @@
   /* {{NO_DEPENDENCIES}} */
   /* Microsoft Developer Studio generated include file. */
-  /* Used by lincity.rc */
+  /* Used by win32/lincity.rc */
   /*  */
 
   /* Next default values for new objects */

@@ -1,6 +1,6 @@
 # Test harness
 
-Minimal, self-contained tests for the audit fixes in `AUDIT_TODO.md`.
+Minimal, self-contained tests for the audit fixes.
 Nothing here is part of the installed game.
 
 ## Unit tests
