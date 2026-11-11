@@ -9,7 +9,7 @@
 # General Public License and is *not* in the public domain.
 
 PACKAGE = lincity
-VERSION = 1.14.0
+VERSION = 1.15.0
 
 SHELL = /bin/sh
 

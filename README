@@ -1,6 +1,6 @@
                       **  Welcome to LinCity Multiplayer  **
 
-This is LinCity 1.14.0 — a multiplayer fork of the classic city simulation
+This is LinCity 1.15.0 — a multiplayer fork of the classic city simulation
 game. The original LinCity did not include multiplayer support; this has been
 added by ANerdyNub.
 
@@ -21,17 +21,23 @@ broke and build rockets to escape from a pollution ridden and resource
 starved planet, it's up to you.
 
 
-WHAT'S NEW IN 1.14.0 (Multiplayer Fork)
-========================================
+WHAT'S NEW IN 1.15.0
+====================
 
-This fork adds multiplayer support to Lincity — something the original
-game never had. Key additions:
+This release hardens the 1.14.0 multiplayer fork. Key changes:
 
-  * Network play over TCP/IP (client/server)
-  * Synchronized yearly stats across all clients
-  * Fixed network screen building placement (click-through bug)
-  * Fixed save/load dialogs on Windows (MinGW)
-  * Source code reorganized under src/ directory
+  * Security and correctness audit of the network and save paths
+  * Validated host/client actions and bounded queues and map operations
+  * Versioned wire protocol (v2); mismatched clients are rejected
+  * zlib-compressed map transfers, lowering bandwidth use
+  * Save loader validation, fuzz corpus, and headless round-trip tests
+  * Regression, fuzz, and two-client network test suites with CI
+
+Multiplayer features introduced in 1.14.0:
+
+  * Network play over TCP/IP (host/client and lobbies)
+  * Synchronized stats across all clients
+  * Source code reorganized under src/
   * Cross-compilation support for Windows (MinGW-w64)
   * Modern autotools build system
 
@@ -48,11 +54,11 @@ As long as it isn't a toaster your PC should be able to run this.
 INSTALLATION (UNIX)
 ===================
 
-Pre-built binary (recommended): download lincity-1.14.0-linux-x86_64.tar.gz
+Pre-built binary (recommended): download lincity-1.15.0-linux-x86_64.tar.gz
 from the GitHub releases page, then:
 
-      tar -xzf lincity-1.14.0-linux-x86_64.tar.gz
-      cd lincity-1.14.0-linux
+      tar -xzf lincity-1.15.0-linux-x86_64.tar.gz
+      cd lincity-1.15.0-linux
       ./xlincity
 
 To build from source:
@@ -128,6 +134,14 @@ This option only applies to xlincity:
         -r   Add an extra border around the game.
         -d   Double the size of the window to 1280x960.
 
+Non-interactive save testing (no display needed):
+
+        --load FILE --save FILE [--ticks N] [--freeze-sim]
+             Load a gzipped save, optionally run N simulation ticks
+             (frozen with --freeze-sim), write a gzipped save, and exit.
+             A test-only --bad-load FILE hook attempts a second load and
+             requires it to fail while preserving the first city.
+
 
 RUNNING LINCITY (WIN32)
 =======================
@@ -149,6 +163,16 @@ command-line options — everything is done through the in-game menu:
 
 To host, set max players (1-4) and wait for connections in the lobby.
 Press S to start or wait for all players to join.  Port 5123 by default.
+
+Security: multiplayer has no authentication, encryption, or access control.
+Any client that can reach port 5123 can act in the game and can send hostile
+messages.  Do not expose the port to the internet.  Use a private VPN such as
+Tailscale or ZeroTier (or a local/loopback connection) instead of router port
+forwarding.
+
+Known multiplayer limitation: a host modal dialog (save/load, confirmation,
+help-related prompts) pauses the host simulation and its network service.  A
+client may queue actions while the dialog is open; keep host dialogs brief.
 
 
 THE LINCITY HOME DIRECTORY
@@ -274,7 +298,7 @@ the game to sourceforge.net.  In late 2001, Corey became
 co-maintainer.  Version 1.12 was released in December 2003.
 
 In 2026, ANerdyNub forked the game to add multiplayer support,
-creating version 1.14.0. The fork includes networking, bugfixes,
+creating version 1.15.0. The fork includes networking, bugfixes,
 build system modernization, and cross-platform improvements.
 
 
