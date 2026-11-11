@@ -25,14 +25,14 @@ noinst_HEADERS = \
 	src/lcx11.h      src/lcsvga.h \
 	src/ldsvgui.h    src/ldsvguts.h   \
 	src/lin-city.h   src/lintypes.h	 src/market.h \
-	src/module_buttons.h \
+	src/mapwire.h    src/module_buttons.h \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
-	src/picedit.h    src/pixmap.h     src/power.h \
+	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
-	src/resource.h	 src/screen.h \
+	src/resource.h	 src/save_parse.h src/screen.h \
 	src/shrglobs.h   src/stats.h \
 	src/simulate.h   src/timer.h	 src/transport.h \
-	src/typeinit.h   src/xpicedit.h	src/modules.h
+	src/typeinit.h   src/validation.h src/xpicedit.h	src/modules.h
 
 # Directories that need to have CVS and ca subdirectories removed
 LC_DISTDIRS = \
