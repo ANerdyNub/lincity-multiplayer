@@ -1,11 +1,17 @@
+# Local-only docs and release staging
+docs/
+build/
+
+# Object files and libtool output
 *.o
 *.lo
 *.la
 *.a
 *.res
-*.exe
 .libs/
 .deps/
+
+# Autotools output
 autom4te.cache/
 config.h
 config.h.in~
@@ -13,19 +19,29 @@ config.log
 config.status
 config.sh
 libtool
+stamp-h1
+configure~
+Makefile
+intl/Makefile
+m4/Makefile
+po/Makefile
+src/modules/Makefile
+
+# Built executables
 lincity
 lincity_console
 xlincity
 lincity.res
-Makefile
-Makefile.in
-m4/Makefile
-m4/Makefile.in
-modules/Makefile
-modules/Makefile.in
-po/Makefile
-po/Makefile.in
-src/modules/Makefile
-src/modules/Makefile.in
-stamp-h1
-configure~
+
+# Logs
+lincity_net.log
+
+# Compiled test binaries
+tests/test_*
+!tests/test_*.c
+
+# Windows runtime DLLs
+*.dll
+
+# Uncompressed fuzz seeds (the tracked corpus is .scn.gz)
+tests/fuzz_save_corpus/*.scn

@@ -4,6 +4,7 @@ dnl Initialization
 AC_INIT([Lincity],[1.14.0],[lincity-users@lists.sourceforge.net],[lincity])
 AC_CONFIG_SRCDIR([colour.pal])
 AM_INIT_AUTOMAKE
+AM_MAINTAINER_MODE([disable])
 
 AC_ARG_WITH(gzip,  [  --with-gzip             use gzip])
 AC_ARG_WITH(svga,  [  --with-svga             use svga library])
