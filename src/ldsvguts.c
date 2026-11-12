@@ -851,6 +851,7 @@ load_city (char *cname)
 	print_total_money ();
     }
     reset_animation_times ();
+    reset_power_grid_mapping ();
     map_power_grid (); /* WCK:  Is this safe to do here? */
     fprintf (stderr, "load_city: loaded %s\n", cname);
     return 1;

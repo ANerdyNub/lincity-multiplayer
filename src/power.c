@@ -84,6 +84,26 @@ power_time_step ()
 }
 
 
+/* int_6 and int_7 on grid cells are derived by map_power_grid().  A save
+   may carry a timestamp that happens to equal the next grid_inc value in
+   this process (the common case is 1), which would make map_power_grid()
+   skip the cell and leave its old grid index pointing at a NULL slot.  Clear
+   the derived fields before rebuilding the grid. */
+void
+reset_power_grid_mapping (void)
+{
+    int x, y;
+
+    for (x = 0; x < WORLD_SIDE_LEN; x++) {
+	for (y = 0; y < WORLD_SIDE_LEN; y++) {
+	    if (XY_IS_GRID(x,y)) {
+		MP_INFO(x,y).int_6 = 0;
+		MP_INFO(x,y).int_7 = 0;
+	    }
+	}
+    }
+}
+
 void 
 map_power_grid ()
 {

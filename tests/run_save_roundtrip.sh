@@ -51,6 +51,17 @@ for name in good_times bad_times normal_a normal_d; do
     fi
     # shellcheck disable=SC2086
     python3 "$ROOT/tests/save_roundtrip.py" "$fixture" "$TMP/$name.out" $expect
+
+    # Reload the file we just wrote.  The writer stores the derived power-grid
+    # timestamp; a fresh process must not mistake it for its own marker and
+    # leave substations pointing at an empty grid slot.
+    if ! env -u DISPLAY HOME="$TMP/home" LINCITY_HOME="$ROOT" \
+        "$BIN" --load "$TMP/$name.out" --save "$TMP/$name.reload" \
+        --ticks 1 >"$TMP/$name.reload.log" 2>&1; then
+        echo "FAIL: reload/simulate failed for $name" >&2
+        cat "$TMP/$name.reload.log" >&2
+        exit 1
+    fi
 done
 
-echo "PASS: all corpus saves survive a headless round trip"
+echo "PASS: all corpus saves survive a headless round trip and reload"
