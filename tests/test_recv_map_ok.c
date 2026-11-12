@@ -19,6 +19,9 @@
 
 Map map;
 struct GROUP main_groups[NUM_OF_GROUPS];
+struct TYPE main_types[NUM_OF_TYPES];
+int num_groups = NUM_OF_GROUPS;
+int num_types = NUM_OF_TYPES;
 
 /* The receive path only sees empty green tiles in this test. */
 int

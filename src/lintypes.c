@@ -3,6 +3,8 @@
  * This file is part of lincity.
  * Lincity is copyright (c) I J Peters 1995-1997, (c) Greg Sharp 1997-2001.
  * ---------------------------------------------------------------------- */
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h> /* XXX: portability issue?  for strcpy */
 #include "lcconfig.h"
 #include "lin-city.h"
@@ -10,13 +12,19 @@
 #include "lctypes.h"
 #include "shrglobs.h"
 #include "lintypes.h"
+#include "mod_registry.h"
+#include "engine.h"
 #include "lcintl.h"
 #include "fileutil.h"
 #include "readpng.h"
+#include <modules.h>
 
-struct TYPE main_types[NUM_OF_TYPES];
+struct TYPE main_types[MAX_TYPES];
+struct GROUP main_groups[MAX_GROUPS];
 
-struct GROUP main_groups[NUM_OF_GROUPS] =
+/* Base data is registered through the same interface mods use.  Index 41
+   is the "EOF" sentinel and is deliberately not registered. */
+static const struct GROUP base_groups[NUM_OF_GROUPS] =
 {
     /* 0 */
     { N_("Empty"),       /* name */
@@ -529,9 +537,188 @@ struct GROUP main_groups[NUM_OF_GROUPS] =
     }
 };
 
+static void
+register_base_behavior (int group)
+{
+    switch (group) {
+    case GROUP_BARE:
+        mod_set_group_behavior (group, GROUP_TRAIT_BARE, NULL, NULL, NULL);
+        break;
+    case GROUP_POWER_LINE:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_POWER_LINE | GROUP_TRAIT_POWER_GRID
+            | GROUP_TRAIT_TRANSPORT,
+            do_power_line, mps_power_line, NULL);
+        break;
+    case GROUP_SOLAR_POWER:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_SOLAR
+            | GROUP_TRAIT_POWER_GRID,
+            do_power_source, mps_solar_power, update_tech_solar_power);
+        break;
+    case GROUP_SUBSTATION:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_SUBSTATION | GROUP_TRAIT_POWER_ENTRY
+            | GROUP_TRAIT_POWER_GRID,
+            do_power_substation, mps_substation, NULL);
+        break;
+    case GROUP_RESIDENCE_LL:
+    case GROUP_RESIDENCE_ML:
+    case GROUP_RESIDENCE_HL:
+    case GROUP_RESIDENCE_LH:
+    case GROUP_RESIDENCE_MH:
+    case GROUP_RESIDENCE_HH:
+        mod_set_group_behavior (group, GROUP_TRAIT_RESIDENCE,
+            do_residence, mps_residence, NULL);
+        break;
+    case GROUP_TRACK:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_TRACK | GROUP_TRAIT_TRANSPORT,
+            do_track, mps_track, NULL);
+        break;
+    case GROUP_COALMINE:
+        mod_set_group_behavior (group, GROUP_TRAIT_COALMINE,
+            do_coalmine, mps_coalmine, NULL);
+        break;
+    case GROUP_RAIL:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_RAIL | GROUP_TRAIT_TRANSPORT,
+            do_rail, mps_rail, NULL);
+        break;
+    case GROUP_COAL_POWER:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_COAL
+            | GROUP_TRAIT_POWER_GRID,
+            do_power_source_coal, mps_coal_power, update_tech_coal_power);
+        break;
+    case GROUP_ROAD:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_ROAD | GROUP_TRAIT_TRANSPORT,
+            do_road, mps_road, NULL);
+        break;
+    case GROUP_INDUSTRY_L:
+        mod_set_group_behavior (group, 0,
+            do_industry_l, mps_light_industry, NULL);
+        break;
+    case GROUP_UNIVERSITY:
+        mod_set_group_behavior (group, 0,
+            do_university, mps_university, NULL);
+        break;
+    case GROUP_COMMUNE:
+        mod_set_group_behavior (group, GROUP_TRAIT_COMMUNE,
+            do_commune, mps_commune, NULL);
+        break;
+    case GROUP_MARKET:
+        mod_set_group_behavior (group, GROUP_TRAIT_MARKET,
+            do_market, mps_market, NULL);
+        break;
+    case GROUP_OREMINE:
+        mod_set_group_behavior (group, GROUP_TRAIT_OREMINE,
+            do_oremine, mps_oremine, NULL);
+        break;
+    case GROUP_TIP:
+        mod_set_group_behavior (group, GROUP_TRAIT_TIP,
+            do_tip, mps_tip, NULL);
+        break;
+    case GROUP_PORT:
+        mod_set_group_behavior (group, GROUP_TRAIT_PORT,
+            do_port, mps_port, NULL);
+        break;
+    case GROUP_INDUSTRY_H:
+        mod_set_group_behavior (group, 0,
+            do_industry_h, mps_heavy_industry, NULL);
+        break;
+    case GROUP_PARKLAND:
+        mod_set_group_behavior (group, 0, do_parkland, NULL, NULL);
+        break;
+    case GROUP_RECYCLE:
+        mod_set_group_behavior (group, GROUP_TRAIT_RECYCLE,
+            do_recycle, mps_recycle, NULL);
+        break;
+    case GROUP_WATER:
+        mod_set_group_behavior (group, GROUP_TRAIT_WATER,
+            NULL, mps_water, NULL);
+        break;
+    case GROUP_HEALTH:
+        mod_set_group_behavior (group, GROUP_TRAIT_HEALTH,
+            do_health_centre, mps_health_centre, NULL);
+        break;
+    case GROUP_ROCKET:
+        mod_set_group_behavior (group, 0,
+            do_rocket_pad, mps_rocket, NULL);
+        break;
+    case GROUP_WINDMILL:
+        mod_set_group_behavior (group,
+            GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_WINDMILL
+            | GROUP_TRAIT_POWER_ENTRY | GROUP_TRAIT_POWER_GRID,
+            do_windmill, mps_windmill, update_tech_windmill);
+        break;
+    case GROUP_MONUMENT:
+        mod_set_group_behavior (group, 0,
+            do_monument, mps_monument, NULL);
+        break;
+    case GROUP_SCHOOL:
+        mod_set_group_behavior (group, 0,
+            do_school, mps_school, NULL);
+        break;
+    case GROUP_BLACKSMITH:
+        mod_set_group_behavior (group, 0,
+            do_blacksmith, mps_blacksmith, NULL);
+        break;
+    case GROUP_MILL:
+        mod_set_group_behavior (group, 0,
+            do_mill, mps_mill, NULL);
+        break;
+    case GROUP_POTTERY:
+        mod_set_group_behavior (group, 0,
+            do_pottery, mps_pottery, NULL);
+        break;
+    case GROUP_FIRESTATION:
+        mod_set_group_behavior (group, GROUP_TRAIT_FIRESTATION,
+            do_firestation, mps_firestation, NULL);
+        break;
+    case GROUP_CRICKET:
+        mod_set_group_behavior (group, GROUP_TRAIT_CRICKET,
+            do_cricket, mps_cricket, NULL);
+        break;
+    case GROUP_FIRE:
+        mod_set_group_behavior (group, GROUP_TRAIT_FIRE,
+            do_fire, NULL, NULL);
+        break;
+    case GROUP_SHANTY:
+        mod_set_group_behavior (group, GROUP_TRAIT_SHANTY,
+            do_shanty, NULL, NULL);
+        break;
+    case GROUP_ORGANIC_FARM:
+        mod_set_group_behavior (group, GROUP_TRAIT_ORGANIC_FARM,
+            do_organic_farm, mps_organic_farm, update_tech_organic_farm);
+        break;
+    default:
+        break;
+    }
+}
+
+static void
+register_base_groups (void)
+{
+    int group;
+
+    mod_registry_reset ();
+    for (group = 0; group < NUM_OF_GROUPS - 1; group++) {
+        if (!mod_register_group (group, &base_groups[group])) {
+            fprintf (stderr, "base group registration failed for %d\n",
+                     group);
+            exit (1);
+        }
+        register_base_behavior (group);
+    }
+}
+
 void init_types(void)
 {
     char png_file[LC_PATH_MAX], txt_file[LC_PATH_MAX];
+
+    register_base_groups ();
     snprintf (png_file, sizeof(png_file), "%s%c%s", opening_path, PATH_SLASH, "icons.png");
     snprintf (txt_file, sizeof(txt_file), "%s%c%s", opening_path, PATH_SLASH, "iconlist.txt");
 
@@ -1475,6 +1662,7 @@ void init_types(void)
 
     main_types[CST_USED].group=GROUP_USED;
     main_types[CST_USED].graphic=0;         /* Won't be dereferenced! */
+    mod_register_type (CST_USED, GROUP_USED, NULL);
 }
 
 
@@ -1482,7 +1670,7 @@ void init_types(void)
 int
 get_group_of_type (short type)
 {
-    if (type < 0 || type >= NUM_OF_TYPES)
+    if (type < 0 || type >= num_types)
 	return -1;
     return main_types[type].group;
 }

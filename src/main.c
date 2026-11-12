@@ -247,6 +247,7 @@ static const char *batch_save_path;
 static int batch_ticks;
 static int batch_freeze;
 static int batch_mode;
+static long batch_seed = 1;
 
 #ifdef CS_PROFILE
 int prof_countdown = PROFILE_COUNTDOWN;
@@ -305,7 +306,7 @@ batch_usage (const char *prog)
 {
     fprintf (stderr,
              "usage: %s --load FILE --save FILE [--bad-load FILE] "
-             "[--ticks N] [--freeze-sim]\n",
+             "[--ticks N] [--seed N] [--freeze-sim]\n",
              prog);
     exit (2);
 }
@@ -386,6 +387,35 @@ parse_batch_options (int *argc, char **argv)
             saw_ticks = 1;
             continue;
         }
+        if (strcmp (arg, "--seed") == 0) {
+            const char *value;
+            char *end;
+            long n;
+
+            if (++i >= *argc)
+                batch_usage (argv[0]);
+            value = argv[i];
+            errno = 0;
+            n = strtol (value, &end, 10);
+            if (end == value || errno != 0 || *end != '\0'
+                || n < 0 || n > INT_MAX)
+                batch_usage (argv[0]);
+            batch_seed = n;
+            continue;
+        }
+        if (strncmp (arg, "--seed=", 7) == 0) {
+            const char *value = arg + 7;
+            char *end;
+            long n;
+
+            errno = 0;
+            n = strtol (value, &end, 10);
+            if (end == value || errno != 0 || *end != '\0'
+                || n < 0 || n > INT_MAX)
+                batch_usage (argv[0]);
+            batch_seed = n;
+            continue;
+        }
         if (strcmp (arg, "--freeze-sim") == 0) {
             batch_freeze = 1;
             continue;
@@ -410,6 +440,10 @@ run_headless_batch (void)
     headless_mode = 1;
     no_init_help = 1;
     skip_splash_screen = 1;
+
+    /* Batch runs use a fixed seed unless the caller overrides it, so save
+       comparisons cannot become flaky through libc's default random state. */
+    srand ((unsigned int) batch_seed);
 
     initialize_geometry (&scr);
     initialize_monthgraph ();
@@ -1410,7 +1444,7 @@ compile_results (void)
 {
     char *s;
     FILE *outf;
-    int group_count[NUM_OF_GROUPS];
+    int group_count[MAX_GROUPS];
 
     if ((s = (char *) malloc (lc_save_dir_len + strlen (LC_SAVE_DIR)
 			      + strlen (RESULTS_FILENAME) + 64)) == 0)
@@ -1420,7 +1454,7 @@ compile_results (void)
 		      + strlen (RESULTS_FILENAME) + 64,
 		 "%s%c%s", lc_save_dir, PATH_SLASH, RESULTS_FILENAME);
 
-    count_all_groups (group_count, NUM_OF_GROUPS);
+    count_all_groups (group_count, num_groups);
     if ((outf = fopen (s, "w")) == 0)
     {
 	printf (_("Unable to open %s\n"), RESULTS_FILENAME);

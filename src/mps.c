@@ -11,6 +11,8 @@
 #include "common.h"
 #include "lctypes.h"
 #include "lin-city.h"
+#include "lintypes.h"
+#include "mod_registry.h"
 #include "mps.h"
 #include "engglobs.h"
 #include "mouse.h"
@@ -143,105 +145,13 @@ mps_update(void)
     switch (mps_style) {
     case MPS_MAP:
 	{
-	    switch(MP_GROUP(mps_x, mps_y)) {
-	    case (GROUP_BLACKSMITH):
-	        mps_blacksmith (mps_x, mps_y);
-		break;
-	    case (GROUP_COALMINE):
-		mps_coalmine (mps_x, mps_y);
-		break;
-	    case GROUP_COAL_POWER:
-		mps_coal_power (mps_x, mps_y);
-		break;
-	    case (GROUP_COMMUNE):
-	        mps_commune (mps_x, mps_y);
-		break;
-	    case (GROUP_CRICKET):
-		mps_cricket (mps_x, mps_y);
-		break;
-	    case (GROUP_FIRESTATION):
-	        mps_firestation (mps_x, mps_y);
-		break;
-	    case (GROUP_HEALTH):
-		mps_health_centre (mps_x, mps_y);
-		break;
-	    case (GROUP_INDUSTRY_H):
-		mps_heavy_industry (mps_x, mps_y);
-		break;
-	    case (GROUP_INDUSTRY_L):
-		mps_light_industry (mps_x, mps_y);
-		break;
-	    case (GROUP_MILL):
-	        mps_mill (mps_x, mps_y);
-		break;
-	    case (GROUP_MONUMENT):
-	        mps_monument (mps_x, mps_y);
-		break;
-	    case (GROUP_OREMINE):
-	        mps_oremine (mps_x, mps_y);
-		break;
-	    case GROUP_ORGANIC_FARM: 
-		mps_organic_farm(mps_x, mps_y);
-		break;
-	    case (GROUP_PORT):
-	        mps_port (mps_x, mps_y);
-		break;
-	    case (GROUP_POTTERY):
-	        mps_pottery (mps_x, mps_y);
-		break;
-	    case GROUP_POWER_LINE:
-	        mps_power_line (mps_x, mps_y);
-	        break;
-	    case (GROUP_RAIL):
-		mps_rail (mps_x, mps_y);
-		break;
-	    case (GROUP_RECYCLE):
-	        mps_recycle (mps_x, mps_y);
-		break;
-	    case GROUP_RESIDENCE_LL:
-	    case GROUP_RESIDENCE_ML:
-	    case GROUP_RESIDENCE_HL:
-	    case GROUP_RESIDENCE_LH:
-	    case GROUP_RESIDENCE_MH:
-	    case GROUP_RESIDENCE_HH:
-		mps_residence(mps_x, mps_y);
-		break;
-	    case (GROUP_ROAD):
-		mps_road (mps_x, mps_y);
-		break;
-	    case (GROUP_ROCKET):
-	        mps_rocket (mps_x, mps_y);
-		break;
-	    case (GROUP_SCHOOL):
-	        mps_school (mps_x, mps_y);
-		break;
-	    case GROUP_SOLAR_POWER:
-	        mps_solar_power (mps_x, mps_y);
-	        break;
-	    case (GROUP_SUBSTATION):
-	        mps_substation (mps_x, mps_y);
-	        break;
-	    case (GROUP_TIP):
-	        mps_tip (mps_x, mps_y);
-		break;
-	    case (GROUP_TRACK):
-		mps_track(mps_x, mps_y);
-		break;
-	    case (GROUP_MARKET):
-		mps_market (mps_x, mps_y);
-		break;
-	    case (GROUP_UNIVERSITY):
-	        mps_university (mps_x, mps_y);
-	        break;
-	    case (GROUP_WATER):
-	        mps_water (mps_x, mps_y);
-	    break;
-	    case (GROUP_WINDMILL):
-	        mps_windmill (mps_x, mps_y);
-		break;
-	    default: 
+	    int grp = MP_GROUP(mps_x, mps_y);
+
+	    if (grp >= 0 && grp < num_groups
+		&& main_groups[grp].mps != NULL)
+		main_groups[grp].mps (mps_x, mps_y);
+	    else
 		printf("MPS unimplemented for that module\n");
-	    }
 	}
         break;
     case MPS_ENV:

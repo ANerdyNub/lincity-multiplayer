@@ -13,9 +13,17 @@
 #define FALSE 0
 #endif
 
+/* Fixed base-game bounds.  These remain the limits for base type IDs and
+   for the size of the legacy base table. */
 #define NUM_OF_TYPES    400
 #define NUM_OF_GROUPS    42
 #define GROUP_NAME_LEN   20
+
+/* Registry capacity.  The base game only uses the first NUM_OF_GROUPS
+   groups and type IDs below NUM_OF_TYPES; mods register into the spare
+   slots.  Runtime code must use num_groups/num_types, not these limits. */
+#define MAX_GROUPS      256
+#define MAX_TYPES       1024
 
 struct GROUP
 {
@@ -30,13 +38,22 @@ struct GROUP
     int   fire_chance;    /* probability of fire */
     int   cost;           /* group cost */
     int   tech;           /* group cost */
+
+    /* Registry metadata, filled by mod_registry.c. */
+    unsigned int traits;
+    void (*simulate)(int x, int y);
+    void (*mps)(int x, int y);
+    void (*update_tech)(int x, int y);
 };
 
 struct TYPE
 {
-    int group;          /* What group does this type belong to? */
+    int group;          /* What group does this type belong to? -1 if unset */
     char* graphic;      /* Bitmap of the graphic */
 };
+
+extern int num_groups;
+extern int num_types;
 
 int get_group_of_type (short selected_type);
 void set_map_groups (void);
@@ -44,7 +61,8 @@ int get_type_cost (short type);
 int get_group_cost (short group);
 void get_type_name (short type, char * s);
 
-extern struct GROUP main_groups[NUM_OF_GROUPS];
-extern struct TYPE main_types[NUM_OF_TYPES];
+/* Left unsized so unit tests can provide their own fixed-size arrays. */
+extern struct GROUP main_groups[];
+extern struct TYPE main_types[];
 
 #endif /* __lintypes_h__ */

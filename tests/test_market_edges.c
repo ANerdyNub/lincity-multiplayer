@@ -9,6 +9,9 @@
 
 Map map;
 struct GROUP main_groups[NUM_OF_GROUPS];
+struct TYPE main_types[NUM_OF_TYPES];
+int num_groups = NUM_OF_GROUPS;
+int num_types = NUM_OF_TYPES;
 int marketx[MAX_NUMOF_MARKETS], markety[MAX_NUMOF_MARKETS];
 int numof_markets;
 int income_tax;

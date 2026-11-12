@@ -355,24 +355,16 @@ recurse_power_grid (int startx, int starty, int steps)
 void 
 project_power(int mapx, int mapy) 
 {
-  switch (MP_GROUP(mapx,mapy)) {
-  case GROUP_COAL_POWER: 
-    {
-      grid[grid_num]->max_power += MP_INFO(mapx,mapy).int_1;
-    } break;
-  case GROUP_SOLAR_POWER: 
-    {
-      grid[grid_num]->max_power += MP_INFO(mapx,mapy).int_3;
-    } break;
-  case GROUP_WINDMILL: 
-    { 
-      grid[grid_num]->max_power += MP_INFO(mapx,mapy).int_1;
-    } break;
-  default: 
-    {
-      printf("default case in project_power");
-      printf("\tMP_GROUP = %d\n",MP_GROUP(mapx,mapy));
-    } break;
+  int group = MP_GROUP(mapx,mapy);
+
+  if (mod_group_has_trait (group, GROUP_TRAIT_POWER_COAL)
+      || mod_group_has_trait (group, GROUP_TRAIT_WINDMILL)) {
+    grid[grid_num]->max_power += MP_INFO(mapx,mapy).int_1;
+  } else if (mod_group_has_trait (group, GROUP_TRAIT_POWER_SOLAR)) {
+    grid[grid_num]->max_power += MP_INFO(mapx,mapy).int_3;
+  } else {
+    printf("default case in project_power");
+    printf("\tMP_GROUP = %d\n", group);
   }
 }
 
@@ -407,7 +399,8 @@ get_power (int x, int y, int power, int block_industry)
       if (abs (xi - x) < SUBSTATION_RANGE && 
 	  abs (yi - y) < SUBSTATION_RANGE) {
 
-	if (block_industry != 0 && MP_GROUP(xi, yi) == GROUP_WINDMILL)
+	if (block_industry != 0
+	    && mod_group_has_trait (MP_GROUP(xi, yi), GROUP_TRAIT_WINDMILL))
 	  continue;
 
 	grid_tmp = MP_INFO(xi,yi).int_6;

@@ -1,6 +1,8 @@
 #ifndef _POWER_H
 #define _POWER_H
 
+#include "mod_registry.h"
+
 #undef DEBUG_POWER
 
 struct grid_struct {
@@ -46,23 +48,19 @@ void project_power(int x, int y);
 #define SOUTH 4
 
 #define XY_IS_GRID(x,y) \
-((MP_GROUP(x,y) == GROUP_COAL_POWER) ||\
- (MP_GROUP(x,y) == GROUP_WINDMILL) || \
- (MP_GROUP(x,y) == GROUP_POWER_LINE) || \
- (MP_GROUP(x,y) == GROUP_SOLAR_POWER) || \
- (MP_GROUP(x,y) == GROUP_SUBSTATION))
+    mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_POWER_GRID)
 
-#define XY_IS_WATER(x,y) (MP_GROUP(x,y) == GROUP_WATER)
+#define XY_IS_WATER(x,y) \
+    mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_WATER)
 
 #define IS_POWER_SOURCE(x,y) \
-((MP_GROUP(x,y) == GROUP_COAL_POWER) || \
- (MP_GROUP(x,y) == GROUP_SOLAR_POWER) || \
- (MP_GROUP(x,y) == GROUP_WINDMILL))
+    mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_POWER_SOURCE)
 
-#define IS_POWER_LINE(x,y) (MP_GROUP(x,y) == GROUP_POWER_LINE)
+#define IS_POWER_LINE(x,y) \
+    mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_POWER_LINE)
 
 #define IS_OLD_WINDMILL(x,y) \
-((MP_GROUP(x,y) == GROUP_WINDMILL) && \
+(mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_WINDMILL) && \
  (MP_TYPE(x,y) != CST_USED) && \
  (MP_INFO(x,y).int_2 < MODERN_WINDMILL_TECH))
 

@@ -24,8 +24,8 @@ noinst_HEADERS = \
 	src/lctypes.h    src/lcwin32.h \
 	src/lcx11.h      src/lcsvga.h \
 	src/ldsvgui.h    src/ldsvguts.h   \
-	src/lin-city.h   src/lintypes.h	 src/market.h \
-	src/mapwire.h    src/module_buttons.h \
+	src/lin-city.h   src/lincity_plugin.h src/lintypes.h src/market.h \
+	src/mapwire.h    src/mod_registry.h src/module_buttons.h \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
 	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
@@ -179,8 +179,8 @@ gui_SOURCES =	src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
 
 engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
 	src/transport.c src/market.c src/simulate.c src/shrtypes.c \
-	src/lintypes.c src/readpng.c src/timer.c src/fileutil.c \
-	src/shrglobs.c src/stats.c
+	src/lintypes.c src/mod_registry.c src/readpng.c src/timer.c \
+	src/fileutil.c src/shrglobs.c src/stats.c
 
 liblcx_la_SHORTNAME = lcx
 liblcx_la_SOURCES = $(gui_SOURCES) src/lcx11.c 

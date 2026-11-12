@@ -28,6 +28,8 @@
 
 struct GROUP main_groups[NUM_OF_GROUPS];
 struct TYPE main_types[NUM_OF_TYPES];
+int num_groups = NUM_OF_GROUPS;
+int num_types = NUM_OF_TYPES;
 
 static Map base_map;
 static int base_map_ok;
@@ -61,6 +63,10 @@ init_tables (void)
         main_groups[i].size = fuzz_group_size[i];
         main_groups[i].group = (unsigned short) i;
     }
+    main_groups[GROUP_MARKET].traits = GROUP_TRAIT_MARKET;
+    main_groups[GROUP_PORT].traits = GROUP_TRAIT_PORT;
+    main_groups[GROUP_SUBSTATION].traits = GROUP_TRAIT_POWER_ENTRY;
+    main_groups[GROUP_WINDMILL].traits = GROUP_TRAIT_POWER_ENTRY;
     for (i = 0; i < NUM_OF_TYPES; i++)
         main_types[i].group = fuzz_type_group[i];
 }

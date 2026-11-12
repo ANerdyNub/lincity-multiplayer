@@ -8,12 +8,10 @@
 #define __TRANSPORT_H__
 
 #include "engglobs.h"
+#include "mod_registry.h"
 
 #define XY_IS_TRANSPORT(x,y) \
-((MP_GROUP(x,y) == GROUP_TRACK) || \
- (MP_GROUP(x,y) == GROUP_ROAD) || \
- (MP_GROUP(x,y) == GROUP_RAIL) || \
- (MP_GROUP(x,y) == GROUP_POWER_LINE))
+    mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_TRANSPORT)
 
 
 #endif
