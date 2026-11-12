@@ -179,7 +179,8 @@ do_oremine (int x, int y)
 		}
 	    }
 	    connect_rivers ();
-	    refresh_main_screen ();
+	    if (!headless_mode)
+		refresh_main_screen ();
 	}
     }
 }

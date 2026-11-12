@@ -117,6 +117,8 @@ connect_transport_main_screen (void)
 void
 refresh_main_screen (void)
 {
+    if (headless_mode)
+	return;
     connect_transport_main_screen ();
     update_main_screen (1);
     update_mini_screen ();
