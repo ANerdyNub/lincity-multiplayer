@@ -47,6 +47,7 @@ TEST_DIST = \
 	tests/*.sh \
 	tests/*.c \
 	tests/*.h \
+	tests/fixtures/*.gz \
 	tests/fuzz_save_corpus/*.gz \
 	tests/fuzz_save_corpus/*.dict
 

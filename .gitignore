@@ -36,9 +36,10 @@ lincity.res
 # Logs
 lincity_net.log
 
-# Compiled test binaries
+# Compiled test binaries and Python caches
 tests/test_*
 !tests/test_*.c
+tests/__pycache__/
 
 # Windows runtime DLLs
 *.dll
