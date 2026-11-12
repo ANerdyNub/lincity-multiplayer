@@ -9,6 +9,7 @@
 #include "lin-city.h"
 #include "lctypes.h"
 #include "lintypes.h"
+#include "mod_registry.h"
 
 /* Read a PNG file.  You may want to return an error code if the read
  * fails (depending upon the failure).  There are two "prototypes" given
@@ -614,10 +615,13 @@ load_png_graphic (short type, short group, char* id,
 	}
     }
 
-    /* Set the main_type info */
+    /* Set the main_type info and register the base type through the
+       same path mods will use. */
     if (grphc) {
-        main_types[type].group = group;
-	main_types[type].graphic = grphc;
+	if (!mod_register_type (type, group, grphc)) {
+	    fprintf (stderr, "Error, invalid base type registration");
+	    exit (-1);
+	}
     } else {
 	fprintf (stderr,"Error, couldn't find id string");
 	exit(-1);

@@ -9,6 +9,7 @@
 #include "lin-city.h"
 #include "lintypes.h"
 #include "lctypes.h"
+#include "mod_registry.h"
 
 static inline int
 map_coord_ok (int x, int y)
@@ -34,19 +35,19 @@ save_version_ok (int version)
 static inline int
 type_ok (int type)
 {
-    return type >= 0 && type < NUM_OF_TYPES;
+    return type >= 0 && type < num_types && main_types[type].group >= 0;
 }
 
 static inline int
 group_ok (int group)
 {
-    return group >= 0 && group < NUM_OF_GROUPS;
+    return group >= 0 && group < num_groups;
 }
 
 static inline int
 trade_group_ok (int group)
 {
-    return group == GROUP_MARKET || group == GROUP_PORT;
+    return mod_group_has_trait (group, GROUP_TRAIT_MARKET | GROUP_TRAIT_PORT);
 }
 
 /* MSG_MFLAGS carries a whole flags word.  Only the twelve trade bits are
@@ -169,7 +170,8 @@ map_state_ok (short type[][WORLD_SIDE_LEN],
 
             if (!map_coord_ok (mx, my) || type[mx][my] == CST_USED)
                 return 0;
-            if (get_group_of_type (type[mx][my]) != GROUP_MARKET)
+            if (!mod_group_has_trait (get_group_of_type (type[mx][my]),
+                                      GROUP_TRAIT_MARKET))
                 return 0;
         }
     }
@@ -185,7 +187,7 @@ map_state_ok (short type[][WORLD_SIDE_LEN],
             if (!map_coord_ok (sx, sy) || type[sx][sy] == CST_USED)
                 return 0;
             sg = get_group_of_type (type[sx][sy]);
-            if (sg != GROUP_SUBSTATION && sg != GROUP_WINDMILL)
+            if (!mod_group_has_trait (sg, GROUP_TRAIT_POWER_ENTRY))
                 return 0;
         }
     }

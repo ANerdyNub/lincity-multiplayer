@@ -8,6 +8,8 @@
 Map map;
 struct GROUP main_groups[NUM_OF_GROUPS];
 struct TYPE main_types[NUM_OF_TYPES];
+int num_groups = NUM_OF_GROUPS;
+int num_types = NUM_OF_TYPES;
 
 int
 get_group_of_type (short selected_type)

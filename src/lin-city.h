@@ -173,6 +173,10 @@
 #define FLAG_MULTI_TRANS_PREV   (0x4000000)
 #define FLAG_POWER_LINE         (0x8000000)
 
+/* Reserved for native plugins.  Base flags use bits 0..27; bit 31 stays
+   unused and is never exposed to plugins. */
+#define FLAG_MOD_MASK           (0x70000000u)
+
 /* Bits that the market/port buy/sell callback may change. */
 #define FLAG_TRADE_MASK         (FLAG_MB_FOOD | FLAG_MS_FOOD \
                                 | FLAG_MB_JOBS | FLAG_MS_JOBS \

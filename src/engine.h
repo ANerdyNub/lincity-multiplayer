@@ -15,4 +15,10 @@ void launch_rocket (int x, int y);
 void connect_rivers (void);
 int adjust_money(int value);
 
+/* Per-group technology updates, installed as registry behavior hooks. */
+void update_tech_organic_farm (int x, int y);
+void update_tech_windmill (int x, int y);
+void update_tech_coal_power (int x, int y);
+void update_tech_solar_power (int x, int y);
+
 #endif	/* __engine_h__ */

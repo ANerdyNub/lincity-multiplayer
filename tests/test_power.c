@@ -7,6 +7,10 @@
 #include "power.h"
 
 Map map;
+struct GROUP main_groups[NUM_OF_GROUPS];
+struct TYPE main_types[NUM_OF_TYPES];
+int num_groups = NUM_OF_GROUPS;
+int num_types = NUM_OF_TYPES;
 int numof_substations;
 int substationx[MAX_NUMOF_SUBSTATIONS];
 int substationy[MAX_NUMOF_SUBSTATIONS];
@@ -46,6 +50,9 @@ main (void)
        unused.  A substation is a grid node but not a power source, so this
        exercises the numbering path without main_types. */
     grid[0] = &sentinel;
+    main_groups[GROUP_SUBSTATION].traits =
+        GROUP_TRAIT_POWER_GRID | GROUP_TRAIT_POWER_ENTRY
+        | GROUP_TRAIT_SUBSTATION;
     map.group[5][5] = GROUP_SUBSTATION;
     map.type[5][5] = CST_SUBSTATION_R;
     map_power_grid ();

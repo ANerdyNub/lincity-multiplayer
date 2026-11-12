@@ -6,6 +6,8 @@
 
 struct GROUP main_groups[NUM_OF_GROUPS];
 struct TYPE main_types[NUM_OF_TYPES];
+int num_groups = NUM_OF_GROUPS;
+int num_types = NUM_OF_TYPES;
 
 int
 get_group_of_type (short selected_type)
@@ -31,6 +33,11 @@ static int failures;
 int
 main (void)
 {
+    main_groups[GROUP_MARKET].traits = GROUP_TRAIT_MARKET;
+    main_groups[GROUP_PORT].traits = GROUP_TRAIT_PORT;
+    main_groups[GROUP_SUBSTATION].traits = GROUP_TRAIT_POWER_ENTRY;
+    main_groups[GROUP_WINDMILL].traits = GROUP_TRAIT_POWER_ENTRY;
+
     /* map_coord_ok: edges and the first out-of-range values. */
     CHECK (!map_coord_ok (-1, 0));
     CHECK (!map_coord_ok (0, -1));

@@ -999,20 +999,14 @@ put_stuff2 (Map_Point_Info *minfo, short *type, int stuff, int stuff_type)
   for (ssp = stack, st = 0, i = 0; i < 8; i++) {
     int map_index = t2[tst];
     if (minfo[map_index].flags & FLAG_IS_TRANSPORT) {
-      switch (get_group_of_type(type[map_index]))
-	{
-	case GROUP_TRACK:
-	  tp = tmax[0][stuff_type];
-	  break;
-	case GROUP_ROAD:
-	  tp = tmax[1][stuff_type];
-	  break;
-	case GROUP_RAIL:
-	  tp = tmax[2][stuff_type];
-	  break;
-	default:
+      {
+	int kind = mod_group_transport_kind
+	  (get_group_of_type (type[map_index]));
+	if (kind >= 0)
+	  tp = tmax[kind][stuff_type];
+	else
 	  do_error ("Bad transport type in put_stuff2");
-	}
+      }
       ip = &minfo[map_index].int_1;
       ssp->ip = ip += stuff_type;	/* push it -- (ThMO) */
       ssp++->max_val = tp;
@@ -1055,20 +1049,14 @@ put_stuff3 (Map_Point_Info *minfo, short *type, int stuff, int stuff_type)
   for (ssp = stack, st = 0, i = 0; i < 12; i++) {
     int map_index = t3[tst];
     if (minfo[map_index].flags & FLAG_IS_TRANSPORT) {
-      switch (get_group_of_type(type[map_index]))
-	{
-	case GROUP_TRACK:
-	  tp = tmax[0][stuff_type];
-	  break;
-	case GROUP_ROAD:
-	  tp = tmax[1][stuff_type];
-	  break;
-	case GROUP_RAIL:
-	  tp = tmax[2][stuff_type];
-	  break;
-	default:
+      {
+	int kind = mod_group_transport_kind
+	  (get_group_of_type (type[map_index]));
+	if (kind >= 0)
+	  tp = tmax[kind][stuff_type];
+	else
 	  do_error ("Bad transport type in put_stuff3");
-	}
+      }
       ip = &minfo[map_index].int_1;
       ssp->ip = ip += stuff_type;	/* push it -- (ThMO) */
       ssp++->max_val = tp;
@@ -1112,20 +1100,14 @@ put_stuff4 (Map_Point_Info *minfo, short *type, int stuff, int stuff_type)
   for (ssp = stack, st = 0, i = 0; i < 16; i++) {
     int map_index = t4[tst];
     if (minfo[map_index].flags & FLAG_IS_TRANSPORT) {
-      switch (get_group_of_type(type[map_index]))
-	{
-	case GROUP_TRACK:
-	  tp = tmax[0][stuff_type];
-	  break;
-	case GROUP_ROAD:
-	  tp = tmax[1][stuff_type];
-	  break;
-	case GROUP_RAIL:
-	  tp = tmax[2][stuff_type];
-	  break;
-	default:
+      {
+	int kind = mod_group_transport_kind
+	  (get_group_of_type (type[map_index]));
+	if (kind >= 0)
+	  tp = tmax[kind][stuff_type];
+	else
 	  do_error ("Bad transport type in put_stuff4");
-	}
+      }
       ip = &minfo[map_index].int_1;
       ssp->ip = ip += stuff_type;	/* push it -- (ThMO) */
       ssp++->max_val = tp;
