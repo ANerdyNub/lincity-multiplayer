@@ -3,6 +3,7 @@
  * This file is part of lincity (see meta/COPYRIGHT for copyright information).
  * ---------------------------------------------------------------------- */
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "png.h"
 #include "malloc.h"
@@ -10,6 +11,7 @@
 #include "lctypes.h"
 #include "lintypes.h"
 #include "mod_registry.h"
+#include "readpng.h"
 
 /* Read a PNG file.  You may want to return an error code if the read
  * fails (depending upon the failure).  There are two "prototypes" given
@@ -627,4 +629,104 @@ load_png_graphic (short type, short group, char* id,
 	exit(-1);
     }
     return 0;
+}
+
+/* Load one 16x16 palette-indexed tile for a data mod.  Returns a
+   malloc'ed 256-byte buffer of palette indices, or NULL with a short
+   diagnostic in err. */
+char *
+load_png_tile (const char *path, char *err, size_t err_size)
+{
+    FILE *fp = NULL;
+    png_structp png_ptr = NULL;
+    png_infop info_ptr = NULL;
+    png_byte header[8];
+    png_uint_32 width, height;
+    int bit_depth, color_type, interlace_type;
+    png_byte row[16];
+    char *tile = NULL;
+    int y;
+
+    if (err != NULL && err_size > 0)
+        err[0] = '\0';
+    if (path == NULL) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size, "missing file name");
+        return NULL;
+    }
+
+    fp = fopen (path, "rb");
+    if (fp == NULL) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size, "cannot open %s", path);
+        return NULL;
+    }
+    if (fread (header, 1, sizeof header, fp) != sizeof header
+        || png_sig_cmp (header, 0, sizeof header) != 0) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size, "%s is not a PNG file", path);
+        fclose (fp);
+        return NULL;
+    }
+
+    png_ptr = png_create_read_struct (PNG_LIBPNG_VER_STRING,
+                                      NULL, NULL, NULL);
+    if (png_ptr == NULL) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size, "cannot initialize PNG reader");
+        fclose (fp);
+        return NULL;
+    }
+    info_ptr = png_create_info_struct (png_ptr);
+    if (info_ptr == NULL) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size, "cannot allocate PNG info");
+        png_destroy_read_struct (&png_ptr, NULL, NULL);
+        fclose (fp);
+        return NULL;
+    }
+    if (setjmp (png_jmpbuf (png_ptr))) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size, "%s is not a valid PNG", path);
+        free (tile);
+        png_destroy_read_struct (&png_ptr, &info_ptr, NULL);
+        fclose (fp);
+        return NULL;
+    }
+
+    png_init_io (png_ptr, fp);
+    png_set_sig_bytes (png_ptr, sizeof header);
+    png_read_info (png_ptr, info_ptr);
+    png_get_IHDR (png_ptr, info_ptr, &width, &height, &bit_depth,
+                  &color_type, &interlace_type, NULL, NULL);
+
+    if (width != 16 || height != 16
+        || bit_depth != 8 || color_type != PNG_COLOR_TYPE_PALETTE
+        || interlace_type != PNG_INTERLACE_NONE) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size,
+                      "%s must be a 16x16 non-interlaced 8-bit palette PNG",
+                      path);
+        png_destroy_read_struct (&png_ptr, &info_ptr, NULL);
+        fclose (fp);
+        return NULL;
+    }
+
+    tile = malloc (16 * 16);
+    if (tile == NULL) {
+        if (err != NULL && err_size > 0)
+            snprintf (err, err_size, "out of memory");
+        png_destroy_read_struct (&png_ptr, &info_ptr, NULL);
+        fclose (fp);
+        return NULL;
+    }
+
+    for (y = 0; y < 16; y++) {
+        png_read_row (png_ptr, row, NULL);
+        memcpy (tile + y * 16, row, 16);
+    }
+    png_read_end (png_ptr, info_ptr);
+    png_destroy_read_struct (&png_ptr, &info_ptr, NULL);
+    fclose (fp);
+    return tile;
 }

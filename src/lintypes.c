@@ -537,164 +537,147 @@ static const struct GROUP base_groups[NUM_OF_GROUPS] =
     }
 };
 
-static void
-register_base_behavior (int group)
+static const struct MOD_BEHAVIOR builtin_behaviors[] = {
+    { "bare", GROUP_TRAIT_BARE, NULL, NULL, NULL },
+    { "power_line",
+      GROUP_TRAIT_POWER_LINE | GROUP_TRAIT_POWER_GRID | GROUP_TRAIT_TRANSPORT,
+      do_power_line, mps_power_line, NULL },
+    { "solar_power",
+      GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_SOLAR
+      | GROUP_TRAIT_POWER_GRID,
+      do_power_source, mps_solar_power, update_tech_solar_power },
+    { "substation",
+      GROUP_TRAIT_SUBSTATION | GROUP_TRAIT_POWER_ENTRY
+      | GROUP_TRAIT_POWER_GRID,
+      do_power_substation, mps_substation, NULL },
+    { "residence", GROUP_TRAIT_RESIDENCE,
+      do_residence, mps_residence, NULL },
+    { "track", GROUP_TRAIT_TRACK | GROUP_TRAIT_TRANSPORT,
+      do_track, mps_track, NULL },
+    { "coalmine", GROUP_TRAIT_COALMINE,
+      do_coalmine, mps_coalmine, NULL },
+    { "rail", GROUP_TRAIT_RAIL | GROUP_TRAIT_TRANSPORT,
+      do_rail, mps_rail, NULL },
+    { "coal_power",
+      GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_COAL
+      | GROUP_TRAIT_POWER_GRID,
+      do_power_source_coal, mps_coal_power, update_tech_coal_power },
+    { "road", GROUP_TRAIT_ROAD | GROUP_TRAIT_TRANSPORT,
+      do_road, mps_road, NULL },
+    { "light_industry", 0,
+      do_industry_l, mps_light_industry, NULL },
+    { "university", 0,
+      do_university, mps_university, NULL },
+    { "commune", GROUP_TRAIT_COMMUNE,
+      do_commune, mps_commune, NULL },
+    { "market", GROUP_TRAIT_MARKET,
+      do_market, mps_market, NULL },
+    { "oremine", GROUP_TRAIT_OREMINE,
+      do_oremine, mps_oremine, NULL },
+    { "tip", GROUP_TRAIT_TIP,
+      do_tip, mps_tip, NULL },
+    { "port", GROUP_TRAIT_PORT,
+      do_port, mps_port, NULL },
+    { "heavy_industry", 0,
+      do_industry_h, mps_heavy_industry, NULL },
+    { "parkland", 0, do_parkland, NULL, NULL },
+    { "recycle", GROUP_TRAIT_RECYCLE,
+      do_recycle, mps_recycle, NULL },
+    { "water", GROUP_TRAIT_WATER, NULL, mps_water, NULL },
+    { "health_centre", GROUP_TRAIT_HEALTH,
+      do_health_centre, mps_health_centre, NULL },
+    { "rocket_pad", 0, do_rocket_pad, mps_rocket, NULL },
+    { "windmill",
+      GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_WINDMILL
+      | GROUP_TRAIT_POWER_ENTRY | GROUP_TRAIT_POWER_GRID,
+      do_windmill, mps_windmill, update_tech_windmill },
+    { "monument", 0, do_monument, mps_monument, NULL },
+    { "school", 0, do_school, mps_school, NULL },
+    { "blacksmith", 0, do_blacksmith, mps_blacksmith, NULL },
+    { "mill", 0, do_mill, mps_mill, NULL },
+    { "pottery", 0, do_pottery, mps_pottery, NULL },
+    { "firestation", GROUP_TRAIT_FIRESTATION,
+      do_firestation, mps_firestation, NULL },
+    { "cricket", GROUP_TRAIT_CRICKET,
+      do_cricket, mps_cricket, NULL },
+    { "fire", GROUP_TRAIT_FIRE, do_fire, NULL, NULL },
+    { "shanty", GROUP_TRAIT_SHANTY, do_shanty, NULL, NULL },
+    { "organic_farm", GROUP_TRAIT_ORGANIC_FARM,
+      do_organic_farm, mps_organic_farm, update_tech_organic_farm },
+};
+
+const struct MOD_BEHAVIOR *
+mod_builtin_behavior_lookup (const char *name)
+{
+    size_t i;
+
+    if (name == NULL)
+        return NULL;
+    for (i = 0; i < sizeof builtin_behaviors / sizeof builtin_behaviors[0];
+         i++) {
+        if (strcmp (builtin_behaviors[i].name, name) == 0)
+            return &builtin_behaviors[i];
+    }
+    return NULL;
+}
+
+static const char *
+base_behavior_name (int group)
 {
     switch (group) {
-    case GROUP_BARE:
-        mod_set_group_behavior (group, GROUP_TRAIT_BARE, NULL, NULL, NULL);
-        break;
-    case GROUP_POWER_LINE:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_POWER_LINE | GROUP_TRAIT_POWER_GRID
-            | GROUP_TRAIT_TRANSPORT,
-            do_power_line, mps_power_line, NULL);
-        break;
-    case GROUP_SOLAR_POWER:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_SOLAR
-            | GROUP_TRAIT_POWER_GRID,
-            do_power_source, mps_solar_power, update_tech_solar_power);
-        break;
-    case GROUP_SUBSTATION:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_SUBSTATION | GROUP_TRAIT_POWER_ENTRY
-            | GROUP_TRAIT_POWER_GRID,
-            do_power_substation, mps_substation, NULL);
-        break;
+    case GROUP_BARE: return "bare";
+    case GROUP_POWER_LINE: return "power_line";
+    case GROUP_SOLAR_POWER: return "solar_power";
+    case GROUP_SUBSTATION: return "substation";
     case GROUP_RESIDENCE_LL:
     case GROUP_RESIDENCE_ML:
     case GROUP_RESIDENCE_HL:
     case GROUP_RESIDENCE_LH:
     case GROUP_RESIDENCE_MH:
-    case GROUP_RESIDENCE_HH:
-        mod_set_group_behavior (group, GROUP_TRAIT_RESIDENCE,
-            do_residence, mps_residence, NULL);
-        break;
-    case GROUP_TRACK:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_TRACK | GROUP_TRAIT_TRANSPORT,
-            do_track, mps_track, NULL);
-        break;
-    case GROUP_COALMINE:
-        mod_set_group_behavior (group, GROUP_TRAIT_COALMINE,
-            do_coalmine, mps_coalmine, NULL);
-        break;
-    case GROUP_RAIL:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_RAIL | GROUP_TRAIT_TRANSPORT,
-            do_rail, mps_rail, NULL);
-        break;
-    case GROUP_COAL_POWER:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_COAL
-            | GROUP_TRAIT_POWER_GRID,
-            do_power_source_coal, mps_coal_power, update_tech_coal_power);
-        break;
-    case GROUP_ROAD:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_ROAD | GROUP_TRAIT_TRANSPORT,
-            do_road, mps_road, NULL);
-        break;
-    case GROUP_INDUSTRY_L:
-        mod_set_group_behavior (group, 0,
-            do_industry_l, mps_light_industry, NULL);
-        break;
-    case GROUP_UNIVERSITY:
-        mod_set_group_behavior (group, 0,
-            do_university, mps_university, NULL);
-        break;
-    case GROUP_COMMUNE:
-        mod_set_group_behavior (group, GROUP_TRAIT_COMMUNE,
-            do_commune, mps_commune, NULL);
-        break;
-    case GROUP_MARKET:
-        mod_set_group_behavior (group, GROUP_TRAIT_MARKET,
-            do_market, mps_market, NULL);
-        break;
-    case GROUP_OREMINE:
-        mod_set_group_behavior (group, GROUP_TRAIT_OREMINE,
-            do_oremine, mps_oremine, NULL);
-        break;
-    case GROUP_TIP:
-        mod_set_group_behavior (group, GROUP_TRAIT_TIP,
-            do_tip, mps_tip, NULL);
-        break;
-    case GROUP_PORT:
-        mod_set_group_behavior (group, GROUP_TRAIT_PORT,
-            do_port, mps_port, NULL);
-        break;
-    case GROUP_INDUSTRY_H:
-        mod_set_group_behavior (group, 0,
-            do_industry_h, mps_heavy_industry, NULL);
-        break;
-    case GROUP_PARKLAND:
-        mod_set_group_behavior (group, 0, do_parkland, NULL, NULL);
-        break;
-    case GROUP_RECYCLE:
-        mod_set_group_behavior (group, GROUP_TRAIT_RECYCLE,
-            do_recycle, mps_recycle, NULL);
-        break;
-    case GROUP_WATER:
-        mod_set_group_behavior (group, GROUP_TRAIT_WATER,
-            NULL, mps_water, NULL);
-        break;
-    case GROUP_HEALTH:
-        mod_set_group_behavior (group, GROUP_TRAIT_HEALTH,
-            do_health_centre, mps_health_centre, NULL);
-        break;
-    case GROUP_ROCKET:
-        mod_set_group_behavior (group, 0,
-            do_rocket_pad, mps_rocket, NULL);
-        break;
-    case GROUP_WINDMILL:
-        mod_set_group_behavior (group,
-            GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_WINDMILL
-            | GROUP_TRAIT_POWER_ENTRY | GROUP_TRAIT_POWER_GRID,
-            do_windmill, mps_windmill, update_tech_windmill);
-        break;
-    case GROUP_MONUMENT:
-        mod_set_group_behavior (group, 0,
-            do_monument, mps_monument, NULL);
-        break;
-    case GROUP_SCHOOL:
-        mod_set_group_behavior (group, 0,
-            do_school, mps_school, NULL);
-        break;
-    case GROUP_BLACKSMITH:
-        mod_set_group_behavior (group, 0,
-            do_blacksmith, mps_blacksmith, NULL);
-        break;
-    case GROUP_MILL:
-        mod_set_group_behavior (group, 0,
-            do_mill, mps_mill, NULL);
-        break;
-    case GROUP_POTTERY:
-        mod_set_group_behavior (group, 0,
-            do_pottery, mps_pottery, NULL);
-        break;
-    case GROUP_FIRESTATION:
-        mod_set_group_behavior (group, GROUP_TRAIT_FIRESTATION,
-            do_firestation, mps_firestation, NULL);
-        break;
-    case GROUP_CRICKET:
-        mod_set_group_behavior (group, GROUP_TRAIT_CRICKET,
-            do_cricket, mps_cricket, NULL);
-        break;
-    case GROUP_FIRE:
-        mod_set_group_behavior (group, GROUP_TRAIT_FIRE,
-            do_fire, NULL, NULL);
-        break;
-    case GROUP_SHANTY:
-        mod_set_group_behavior (group, GROUP_TRAIT_SHANTY,
-            do_shanty, NULL, NULL);
-        break;
-    case GROUP_ORGANIC_FARM:
-        mod_set_group_behavior (group, GROUP_TRAIT_ORGANIC_FARM,
-            do_organic_farm, mps_organic_farm, update_tech_organic_farm);
-        break;
-    default:
-        break;
+    case GROUP_RESIDENCE_HH: return "residence";
+    case GROUP_TRACK: return "track";
+    case GROUP_COALMINE: return "coalmine";
+    case GROUP_RAIL: return "rail";
+    case GROUP_COAL_POWER: return "coal_power";
+    case GROUP_ROAD: return "road";
+    case GROUP_INDUSTRY_L: return "light_industry";
+    case GROUP_UNIVERSITY: return "university";
+    case GROUP_COMMUNE: return "commune";
+    case GROUP_MARKET: return "market";
+    case GROUP_OREMINE: return "oremine";
+    case GROUP_TIP: return "tip";
+    case GROUP_PORT: return "port";
+    case GROUP_INDUSTRY_H: return "heavy_industry";
+    case GROUP_PARKLAND: return "parkland";
+    case GROUP_RECYCLE: return "recycle";
+    case GROUP_WATER: return "water";
+    case GROUP_HEALTH: return "health_centre";
+    case GROUP_ROCKET: return "rocket_pad";
+    case GROUP_WINDMILL: return "windmill";
+    case GROUP_MONUMENT: return "monument";
+    case GROUP_SCHOOL: return "school";
+    case GROUP_BLACKSMITH: return "blacksmith";
+    case GROUP_MILL: return "mill";
+    case GROUP_POTTERY: return "pottery";
+    case GROUP_FIRESTATION: return "firestation";
+    case GROUP_CRICKET: return "cricket";
+    case GROUP_FIRE: return "fire";
+    case GROUP_SHANTY: return "shanty";
+    case GROUP_ORGANIC_FARM: return "organic_farm";
+    default: return NULL;
+    }
+}
+
+static void
+register_base_behavior (int group)
+{
+    const struct MOD_BEHAVIOR *behavior =
+        mod_builtin_behavior_lookup (base_behavior_name (group));
+
+    if (behavior != NULL) {
+        mod_set_group_behavior (group, behavior->traits,
+                                behavior->simulate, behavior->mps,
+                                behavior->update_tech);
     }
 }
 
@@ -1660,8 +1643,6 @@ void init_types(void)
     main_types[CST_SHANTY].graphic=load_graphic(CST_SHANTY_G);
 #endif
 
-    main_types[CST_USED].group=GROUP_USED;
-    main_types[CST_USED].graphic=0;         /* Won't be dereferenced! */
     mod_register_type (CST_USED, GROUP_USED, NULL);
 }
 

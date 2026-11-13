@@ -26,6 +26,7 @@ noinst_HEADERS = \
 	src/ldsvgui.h    src/ldsvguts.h   \
 	src/lin-city.h   src/lincity_plugin.h src/lintypes.h src/market.h \
 	src/mapwire.h    src/mod_registry.h src/module_buttons.h \
+	src/mod_ini.h    src/mod_loader.h \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
 	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
@@ -48,6 +49,8 @@ TEST_DIST = \
 	tests/*.c \
 	tests/*.h \
 	tests/fixtures/*.gz \
+	tests/fixtures/mods/*/* \
+	tests/fixtures/mods/*/*/* \
 	tests/fuzz_save_corpus/*.gz \
 	tests/fuzz_save_corpus/*.dict
 
@@ -179,7 +182,8 @@ gui_SOURCES =	src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
 
 engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
 	src/transport.c src/market.c src/simulate.c src/shrtypes.c \
-	src/lintypes.c src/mod_registry.c src/readpng.c src/timer.c \
+	src/lintypes.c src/mod_registry.c src/mod_ini.c src/mod_loader.c \
+	src/readpng.c src/timer.c \
 	src/fileutil.c src/shrglobs.c src/stats.c
 
 liblcx_la_SHORTNAME = lcx
