@@ -18,6 +18,8 @@
 #define NUM_OF_TYPES    400
 #define NUM_OF_GROUPS    42
 #define GROUP_NAME_LEN   20
+#define MOD_KEY_LEN      160
+#define MOD_OWNER_LEN    64
 
 /* Registry capacity.  The base game only uses the first NUM_OF_GROUPS
    groups and type IDs below NUM_OF_TYPES; mods register into the spare
@@ -44,12 +46,16 @@ struct GROUP
     void (*simulate)(int x, int y);
     void (*mps)(int x, int y);
     void (*update_tech)(int x, int y);
+    char key[MOD_KEY_LEN + 1];
+    char owner[MOD_OWNER_LEN + 1];
 };
 
 struct TYPE
 {
     int group;          /* What group does this type belong to? -1 if unset */
     char* graphic;      /* Bitmap of the graphic */
+    char key[MOD_KEY_LEN + 1];
+    char owner[MOD_OWNER_LEN + 1];
 };
 
 extern int num_groups;

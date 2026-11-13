@@ -64,10 +64,47 @@ mod_group_transport_kind (int group)
 
 void mod_registry_reset (void);
 int mod_register_group (int id, const struct GROUP *desc);
+int mod_register_group_keyed (int id, const char *key, const char *owner,
+                              const struct GROUP *desc);
 int mod_set_group_behavior (int id, unsigned int traits,
                             void (*simulate)(int, int),
                             void (*mps)(int, int),
                             void (*update_tech)(int, int));
 int mod_register_type (int id, int group, char *graphic);
+int mod_register_type_keyed (int id, const char *key, const char *owner,
+                             int group, char *graphic);
+
+/* Look up a stable key.  Returns -1 when the key is not registered. */
+int mod_find_group_by_key (const char *key);
+int mod_find_type_by_key (const char *key);
+
+/* First unused ID at or above the base range, or -1 when full.  Group 41
+   is reserved for the legacy "EOF" sentinel and is never returned. */
+int mod_alloc_group_id (void);
+int mod_alloc_type_id (void);
+
+/* Built-in behavior descriptions shared by base registration and data mods. */
+struct MOD_BEHAVIOR
+{
+    const char *name;
+    unsigned int traits;
+    void (*simulate)(int x, int y);
+    void (*mps)(int x, int y);
+    void (*update_tech)(int x, int y);
+};
+
+const struct MOD_BEHAVIOR *mod_builtin_behavior_lookup (const char *name);
+
+/* Snapshot/restore for atomic mod registration. */
+struct MOD_REGISTRY_STATE
+{
+    struct GROUP groups[MAX_GROUPS];
+    struct TYPE types[MAX_TYPES];
+    int num_groups;
+    int num_types;
+};
+
+void mod_registry_snapshot (struct MOD_REGISTRY_STATE *state);
+void mod_registry_restore (const struct MOD_REGISTRY_STATE *state);
 
 #endif /* __mod_registry_h__ */

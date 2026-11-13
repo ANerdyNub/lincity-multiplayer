@@ -18,7 +18,8 @@ LIBS = -lgdi32 -luser32 -lcomctl32 -lcomdlg32 -lwinmm -lws2_32 -lpng -lz -lm
 
 ENGINE_OBJS = src/lclib.o src/power.o src/ldsvguts.o src/engine.o \
 	      src/transport.o src/market.o src/simulate.o src/shrtypes.o \
-	      src/lintypes.o src/mod_registry.o src/readpng.o src/timer.o \
+	      src/lintypes.o src/mod_registry.o src/mod_ini.o \
+	      src/mod_loader.o src/readpng.o src/timer.o \
 	      src/fileutil.o src/shrglobs.o src/stats.o
 
 GUI_OBJS = src/ldsvgui.o src/splash.o src/lchelp.o src/main.o src/mouse.o \

@@ -23,6 +23,7 @@ extern int lc_save_dir_len;
 #endif
 
 extern char colour_pal_file[LC_PATH_MAX];
+extern char LIBDIR[LC_PATH_MAX];
 extern char opening_pic[LC_PATH_MAX];
 extern char graphic_path[LC_PATH_MAX];
 extern char fontfile[LC_PATH_MAX];

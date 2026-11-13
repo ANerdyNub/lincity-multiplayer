@@ -53,6 +53,19 @@ if [ -f "$ROOT/tests/test_save_parse.c" ]; then
     "$ROOT/tests/test_save_parse"
 fi
 
+# Data-mod loader: INI parser, discovery, duplicate IDs, rollback, and
+# synthetic map validation through the shared registry.
+if [ -f "$ROOT/tests/test_mod_loader.c" ]; then
+    "$CC" -DHAVE_CONFIG_H -I "$ROOT" -I "$ROOT/src" \
+        -Wall -Wextra -Werror \
+        -ffunction-sections -fdata-sections -Wl,--gc-sections \
+        -o "$ROOT/tests/test_mod_loader" \
+        "$ROOT/tests/test_mod_loader.c" \
+        "$ROOT/src/mod_ini.c" "$ROOT/src/mod_loader.c" \
+        "$ROOT/src/mod_registry.c"
+    "$ROOT/tests/test_mod_loader"
+fi
+
 if [ -f "$ROOT/tests/test_map_wire.c" ]; then
     "$CC" -I "$ROOT/src" -Wall -Wextra -Werror \
         -o "$ROOT/tests/test_map_wire" "$ROOT/tests/test_map_wire.c"
@@ -249,6 +262,8 @@ fi
 # Headless save tests: corpus round trips and transactional failed reloads.
 if [ -x "${LINCITY_ASAN_BIN:-$ROOT/xlincity}" ] \
     && command -v python3 >/dev/null 2>&1; then
+    "$ROOT/tests/run_mod_loader.sh" \
+        --binary "${LINCITY_ASAN_BIN:-$ROOT/xlincity}"
     "$ROOT/tests/run_save_roundtrip.sh" \
         --binary "${LINCITY_ASAN_BIN:-$ROOT/xlincity}"
     "$ROOT/tests/run_save_rollback.sh" \

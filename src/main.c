@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #if defined (WIN32)
 #include <winsock.h>
@@ -60,7 +61,9 @@
 #include "validation.h"
 #include "module_buttons.h"
 #include "fileutil.h"
+#include "mod_loader.h"
 #include "network.h"
+#include "readpng.h"
 #include "stats.h"
 
 #if defined (WIN32) && !defined (NDEBUG)
@@ -249,6 +252,13 @@ static int batch_freeze;
 static int batch_mode;
 static long batch_seed = 1;
 
+/* Data mod options.  Values are stripped here so the X/SVGA argument
+   parsers never see them. */
+static const char *mod_dir_arg;
+static const char *mods_conf_arg;
+static int list_mods;
+static char default_mod_dir[LC_PATH_MAX];
+
 #ifdef CS_PROFILE
 int prof_countdown = PROFILE_COUNTDOWN;
 #endif
@@ -306,8 +316,9 @@ batch_usage (const char *prog)
 {
     fprintf (stderr,
              "usage: %s --load FILE --save FILE [--bad-load FILE] "
-             "[--ticks N] [--seed N] [--freeze-sim]\n",
-             prog);
+             "[--ticks N] [--seed N] [--freeze-sim]\n"
+             "       %s [--mod-dir DIR] [--mods-conf FILE] [--list-mods]\n",
+             prog, prog);
     exit (2);
 }
 
@@ -416,6 +427,34 @@ parse_batch_options (int *argc, char **argv)
             batch_seed = n;
             continue;
         }
+        if (strcmp (arg, "--mod-dir") == 0) {
+            if (++i >= *argc || argv[i][0] == '\0')
+                batch_usage (argv[0]);
+            mod_dir_arg = argv[i];
+            continue;
+        }
+        if (strncmp (arg, "--mod-dir=", 10) == 0) {
+            if (arg[10] == '\0')
+                batch_usage (argv[0]);
+            mod_dir_arg = arg + 10;
+            continue;
+        }
+        if (strcmp (arg, "--mods-conf") == 0) {
+            if (++i >= *argc || argv[i][0] == '\0')
+                batch_usage (argv[0]);
+            mods_conf_arg = argv[i];
+            continue;
+        }
+        if (strncmp (arg, "--mods-conf=", 12) == 0) {
+            if (arg[12] == '\0')
+                batch_usage (argv[0]);
+            mods_conf_arg = arg + 12;
+            continue;
+        }
+        if (strcmp (arg, "--list-mods") == 0) {
+            list_mods = 1;
+            continue;
+        }
         if (strcmp (arg, "--freeze-sim") == 0) {
             batch_freeze = 1;
             continue;
@@ -429,7 +468,79 @@ parse_batch_options (int *argc, char **argv)
         batch_usage (argv[0]);
     if (saw_ticks && batch_load_path == NULL)
         batch_usage (argv[0]);
+    if (list_mods && batch_load_path != NULL)
+        batch_usage (argv[0]);
     batch_mode = batch_load_path != NULL && batch_save_path != NULL;
+}
+
+static const char *
+configured_mod_dir (void)
+{
+    if (mod_dir_arg != NULL)
+        return mod_dir_arg;
+    snprintf (default_mod_dir, sizeof default_mod_dir, "%s%c%s",
+              LIBDIR, PATH_SLASH, "mods");
+    return default_mod_dir;
+}
+
+static int
+default_mod_dir_exists (void)
+{
+    struct stat st;
+
+    if (mod_dir_arg != NULL)
+        return 1;
+    return stat (configured_mod_dir (), &st) == 0 && S_ISDIR (st.st_mode);
+}
+
+static int
+load_data_mods (void)
+{
+    char err[512];
+
+    if (!default_mod_dir_exists ()) {
+        if (mods_conf_arg == NULL)
+            return 1;
+        fprintf (stderr, "mods: cannot open mod directory %s\n",
+                 configured_mod_dir ());
+        return 0;
+    }
+    mod_loader_init ();
+    if (!mod_loader_load (configured_mod_dir (), mods_conf_arg,
+                          mod_builtin_behavior_lookup, load_png_tile,
+                          err, sizeof err)) {
+        fprintf (stderr, "mods: %s\n", err);
+        return 0;
+    }
+    return 1;
+}
+
+static int
+print_mod_listing (void)
+{
+    struct MOD_LISTING *mods = NULL;
+    size_t count = 0;
+    size_t i;
+    char err[512];
+
+    if (!default_mod_dir_exists ()) {
+        if (mods_conf_arg == NULL)
+            return 0;
+        fprintf (stderr, "mods: cannot open mod directory %s\n",
+                 configured_mod_dir ());
+        return 1;
+    }
+    if (!mod_loader_scan (configured_mod_dir (), mods_conf_arg,
+                          &mods, &count, err, sizeof err)) {
+        fprintf (stderr, "mods: %s\n", err);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        printf ("%s@%s %s %s\n", mods[i].id, mods[i].version,
+                mods[i].enabled ? "enabled" : "disabled", mods[i].name);
+    }
+    mod_loader_free_listing (mods);
+    return 0;
 }
 
 static int
@@ -448,6 +559,8 @@ run_headless_batch (void)
     initialize_geometry (&scr);
     initialize_monthgraph ();
     init_types ();
+    if (!load_data_mods ())
+        return 1;
     init_mappoint_array ();
     initialize_tax_rates ();
     init_pbars ();
@@ -516,7 +629,7 @@ lincity_main (int argc, char *argv[])
 #ifdef LC_X11
     borderx = 0;
     bordery = 0;
-    if (!batch_mode)
+    if (!batch_mode && !list_mods)
         parse_xargs (argc, argv, &geometry);
 #endif
 
@@ -525,6 +638,9 @@ lincity_main (int argc, char *argv[])
 
     /* Set up the paths to certain files and directories */
     init_path_strings ();
+
+    if (list_mods)
+        return print_mod_listing ();
 
     /* Make sure that things are installed where they should be */
     verify_package ();
@@ -606,6 +722,8 @@ lincity_main (int argc, char *argv[])
     draw_background ();
     prog_box (_("Loading the game"), 1);
     init_types ();
+    if (!load_data_mods ())
+        return 1;
     init_modules();
     init_mappoint_array ();
     initialize_tax_rates ();

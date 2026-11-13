@@ -177,6 +177,7 @@ am__objects_3 = src/lclib.$(OBJEXT) src/power.$(OBJEXT) \
 	src/transport.$(OBJEXT) src/market.$(OBJEXT) \
 	src/simulate.$(OBJEXT) src/shrtypes.$(OBJEXT) \
 	src/lintypes.$(OBJEXT) src/mod_registry.$(OBJEXT) \
+	src/mod_ini.$(OBJEXT) src/mod_loader.$(OBJEXT) \
 	src/readpng.$(OBJEXT) src/timer.$(OBJEXT) \
 	src/fileutil.$(OBJEXT) src/shrglobs.$(OBJEXT) \
 	src/stats.$(OBJEXT)
@@ -228,6 +229,7 @@ am__depfiles_remade = src/$(DEPDIR)/engine.Po \
 	src/$(DEPDIR)/lcx-pixmap.Plo src/$(DEPDIR)/lcx-screen.Plo \
 	src/$(DEPDIR)/lcx-splash.Plo src/$(DEPDIR)/ldsvguts.Po \
 	src/$(DEPDIR)/lintypes.Po src/$(DEPDIR)/market.Po \
+	src/$(DEPDIR)/mod_ini.Po src/$(DEPDIR)/mod_loader.Po \
 	src/$(DEPDIR)/mod_registry.Po src/$(DEPDIR)/picedit.Po \
 	src/$(DEPDIR)/power.Po src/$(DEPDIR)/readpng.Po \
 	src/$(DEPDIR)/shrglobs.Po src/$(DEPDIR)/shrtypes.Po \
@@ -535,8 +537,9 @@ noinst_HEADERS = \
 	src/lctypes.h    src/lcwin32.h \
 	src/lcx11.h      src/lcsvga.h \
 	src/ldsvgui.h    src/ldsvguts.h   \
-	src/lin-city.h   src/lintypes.h	 src/market.h \
+	src/lin-city.h   src/lincity_plugin.h src/lintypes.h src/market.h \
 	src/mapwire.h    src/mod_registry.h src/module_buttons.h \
+	src/mod_ini.h    src/mod_loader.h \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
 	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
@@ -561,6 +564,8 @@ TEST_DIST = \
 	tests/*.c \
 	tests/*.h \
 	tests/fixtures/*.gz \
+	tests/fixtures/mods/*/* \
+	tests/fixtures/mods/*/*/* \
 	tests/fuzz_save_corpus/*.gz \
 	tests/fuzz_save_corpus/*.dict
 
@@ -582,7 +587,8 @@ gui_SOURCES = src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
 
 engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
 	src/transport.c src/market.c src/simulate.c src/shrtypes.c \
-	src/lintypes.c src/mod_registry.c src/readpng.c src/timer.c \
+	src/lintypes.c src/mod_registry.c src/mod_ini.c src/mod_loader.c \
+	src/readpng.c src/timer.c \
 	src/fileutil.c src/shrglobs.c src/stats.c
 
 liblcx_la_SHORTNAME = lcx
@@ -810,6 +816,10 @@ src/lintypes.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/mod_registry.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/mod_ini.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/mod_loader.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/readpng.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/timer.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
@@ -881,6 +891,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ldsvguts.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lintypes.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/market.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/mod_ini.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/mod_loader.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/mod_registry.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/picedit.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/power.Po@am__quote@ # am--include-marker
@@ -1606,6 +1618,8 @@ distclean: distclean-recursive
 	-rm -f src/$(DEPDIR)/ldsvguts.Po
 	-rm -f src/$(DEPDIR)/lintypes.Po
 	-rm -f src/$(DEPDIR)/market.Po
+	-rm -f src/$(DEPDIR)/mod_ini.Po
+	-rm -f src/$(DEPDIR)/mod_loader.Po
 	-rm -f src/$(DEPDIR)/mod_registry.Po
 	-rm -f src/$(DEPDIR)/picedit.Po
 	-rm -f src/$(DEPDIR)/power.Po
@@ -1700,6 +1714,8 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f src/$(DEPDIR)/ldsvguts.Po
 	-rm -f src/$(DEPDIR)/lintypes.Po
 	-rm -f src/$(DEPDIR)/market.Po
+	-rm -f src/$(DEPDIR)/mod_ini.Po
+	-rm -f src/$(DEPDIR)/mod_loader.Po
 	-rm -f src/$(DEPDIR)/mod_registry.Po
 	-rm -f src/$(DEPDIR)/picedit.Po
 	-rm -f src/$(DEPDIR)/power.Po
