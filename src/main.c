@@ -322,11 +322,27 @@ batch_usage (const char *prog)
     exit (2);
 }
 
+static int
+batch_requested (int argc, char **argv)
+{
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp (argv[i], "--load") == 0
+            || strncmp (argv[i], "--load=", 7) == 0
+            || strcmp (argv[i], "--save") == 0
+            || strncmp (argv[i], "--save=", 7) == 0)
+            return 1;
+    }
+    return 0;
+}
+
 static void
 parse_batch_options (int *argc, char **argv)
 {
     int out = 1;
     int saw_ticks = 0;
+    int want_batch = batch_requested (*argc, argv);
 
     for (int i = 1; i < *argc; i++) {
         const char *arg = argv[i];
@@ -398,7 +414,7 @@ parse_batch_options (int *argc, char **argv)
             saw_ticks = 1;
             continue;
         }
-        if (strcmp (arg, "--seed") == 0) {
+        if (want_batch && strcmp (arg, "--seed") == 0) {
             const char *value;
             char *end;
             long n;
@@ -414,7 +430,7 @@ parse_batch_options (int *argc, char **argv)
             batch_seed = n;
             continue;
         }
-        if (strncmp (arg, "--seed=", 7) == 0) {
+        if (want_batch && strncmp (arg, "--seed=", 7) == 0) {
             const char *value = arg + 7;
             char *end;
             long n;
