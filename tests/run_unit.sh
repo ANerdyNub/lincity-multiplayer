@@ -66,6 +66,15 @@ if [ -f "$ROOT/tests/test_mod_loader.c" ]; then
     "$ROOT/tests/test_mod_loader"
 fi
 
+# M3: page 0 stays frozen; mod entries group by category, order stably,
+# paginate at 32, and keep mod help state out of the legacy slot arrays.
+if [ -f "$ROOT/tests/test_mod_menu.c" ]; then
+    "$CC" -I "$ROOT/src" -Wall -Wextra -Werror \
+        -o "$ROOT/tests/test_mod_menu" \
+        "$ROOT/tests/test_mod_menu.c" "$ROOT/src/mod_menu.c"
+    "$ROOT/tests/test_mod_menu"
+fi
+
 if [ -f "$ROOT/tests/test_map_wire.c" ]; then
     "$CC" -I "$ROOT/src" -Wall -Wextra -Werror \
         -o "$ROOT/tests/test_map_wire" "$ROOT/tests/test_map_wire.c"

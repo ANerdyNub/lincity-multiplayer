@@ -965,6 +965,16 @@ process_keystrokes (int key)
 				TRUE);
 	}
 	break;
+
+    case 6:
+	/* Previous build-menu page */
+	module_change_page (-1);
+	break;
+
+    case 7:
+	/* Next build-menu page */
+	module_change_page (1);
+	break;
 #endif
 
     case 'P':

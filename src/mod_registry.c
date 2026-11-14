@@ -27,11 +27,11 @@ mod_registry_reset (void)
     int i;
 
     memset (main_groups, 0, sizeof (struct GROUP) * MAX_GROUPS);
+    for (i = 0; i < MAX_GROUPS; i++)
+        main_groups[i].default_type = -1;
     for (i = 0; i < MAX_TYPES; i++) {
+        memset (&main_types[i], 0, sizeof main_types[i]);
         main_types[i].group = -1;
-        main_types[i].graphic = NULL;
-        main_types[i].key[0] = '\0';
-        main_types[i].owner[0] = '\0';
     }
     num_groups = 0;
     num_types = 0;
@@ -131,6 +131,60 @@ int
 mod_register_type (int id, int group, char *graphic)
 {
     return mod_register_type_keyed (id, NULL, "base", group, graphic);
+}
+
+int
+mod_set_type_name (int id, const char *name)
+{
+    if (id < 0 || id >= num_types || main_types[id].group < 0)
+        return 0;
+    copy_text (main_types[id].name, sizeof main_types[id].name, name);
+    return 1;
+}
+
+int
+mod_group_type_count (int group)
+{
+    int id;
+    int count = 0;
+
+    if (group < 0 || group >= num_groups)
+        return 0;
+    for (id = 0; id < num_types; id++) {
+        if (main_types[id].group == group)
+            count++;
+    }
+    return count;
+}
+
+int
+mod_group_type_at (int group, int index)
+{
+    int id;
+
+    if (group < 0 || group >= num_groups || index < 0)
+        return -1;
+    for (id = 0; id < num_types; id++) {
+        if (main_types[id].group != group)
+            continue;
+        if (index == 0)
+            return id;
+        index--;
+    }
+    return -1;
+}
+
+int
+mod_group_default_type (int group)
+{
+    int type;
+
+    if (group < 0 || group >= num_groups)
+        return -1;
+    type = main_groups[group].default_type;
+    if (type >= 0 && type < num_types && main_types[type].group == group)
+        return type;
+    return mod_group_type_at (group, 0);
 }
 
 int

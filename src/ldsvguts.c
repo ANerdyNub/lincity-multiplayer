@@ -844,9 +844,7 @@ load_city (char *cname)
     }
 
     if (!headless_mode) {
-	unhighlight_module_button (selected_module);
-	selected_module = sbut[7];	/* 7 is track.  Watch out though! */
-	highlight_module_button (selected_module);
+	module_select_group (GROUP_TRACK);
 	set_selected_module (CST_TRACK_LR);
 	print_total_money ();
     }

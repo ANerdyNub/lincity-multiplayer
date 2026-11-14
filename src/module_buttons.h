@@ -20,6 +20,11 @@ void module_buttons_handler (int x, int y, int mbutton);
 void select_module (int module, int mbutton);
 void check_pending_module (void);
 
+  /* Build-panel page navigation and mod-help integration. */
+void module_change_page (int delta);
+void module_select_group (int group);
+int module_chooser_page_result (const char *page, int value);
+
   /* mouse.c: void highlight_select_button (int button); */
 void highlight_module_button (int module);
 

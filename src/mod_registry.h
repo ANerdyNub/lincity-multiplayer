@@ -73,6 +73,13 @@ int mod_set_group_behavior (int id, unsigned int traits,
 int mod_register_type (int id, int group, char *graphic);
 int mod_register_type_keyed (int id, const char *key, const char *owner,
                              int group, char *graphic);
+int mod_set_type_name (int id, const char *name);
+
+/* Enumerate the types registered for one group.  Type IDs are sparse, so
+   callers should index with mod_group_type_at rather than adding offsets. */
+int mod_group_type_count (int group);
+int mod_group_type_at (int group, int index);
+int mod_group_default_type (int group);
 
 /* Look up a stable key.  Returns -1 when the key is not registered. */
 int mod_find_group_by_key (const char *key);
