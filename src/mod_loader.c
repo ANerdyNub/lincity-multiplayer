@@ -66,6 +66,7 @@ struct MOD_SPEC
     char id[MOD_ID_MAX + 1];
     char name[MOD_NAME_MAX + 1];
     char version[MOD_VERSION_MAX + 1];
+    int api;
     char dir[MOD_PATH_MAX + 1];
     int enabled;
     int order;
@@ -84,6 +85,7 @@ struct CONF_ENTRY
 static int loaded;
 static char enabled_ids[MOD_LIST_MAX][MOD_ID_MAX + 1];
 static char enabled_versions[MOD_LIST_MAX][MOD_VERSION_MAX + 1];
+static int enabled_apis[MOD_LIST_MAX];
 static size_t enabled_total;
 
 static void
@@ -631,6 +633,7 @@ parse_manifest (const char *path, const char *dir, struct MOD_SPEC *mod,
         mod_ini_free (&ini);
         return 0;
     }
+    mod->api = api;
 
     for (i = 0; i < ini.count; i++) {
         const char *key = ini.entries[i].key;
@@ -1519,6 +1522,7 @@ mod_loader_load (const char *dir, const char *conf,
                    sizeof enabled_ids[enabled_total], mod->id);
         copy_text (enabled_versions[enabled_total],
                    sizeof enabled_versions[enabled_total], mod->version);
+        enabled_apis[enabled_total] = mod->api;
         enabled_total++;
     }
 
@@ -1532,6 +1536,7 @@ mod_loader_init (void)
 {
     loaded = 0;
     enabled_total = 0;
+    memset (enabled_apis, 0, sizeof enabled_apis);
 }
 
 void
@@ -1539,6 +1544,7 @@ mod_loader_shutdown (void)
 {
     loaded = 0;
     enabled_total = 0;
+    memset (enabled_apis, 0, sizeof enabled_apis);
 }
 
 size_t
@@ -1557,4 +1563,10 @@ const char *
 mod_loader_enabled_version (size_t index)
 {
     return index < enabled_total ? enabled_versions[index] : NULL;
+}
+
+int
+mod_loader_enabled_api (size_t index)
+{
+    return index < enabled_total ? enabled_apis[index] : 0;
 }
