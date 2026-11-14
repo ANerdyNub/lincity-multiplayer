@@ -75,6 +75,19 @@ if [ -f "$ROOT/tests/test_mod_menu.c" ]; then
     "$ROOT/tests/test_mod_menu"
 fi
 
+# M4: versioned mod save header, stable type remapping, and
+# missing/incompatible mod rejection.
+if [ -f "$ROOT/tests/test_mod_saves.c" ]; then
+    "$CC" -DHAVE_CONFIG_H -I "$ROOT" -I "$ROOT/src" \
+        -Wall -Wextra -Werror \
+        -ffunction-sections -fdata-sections -Wl,--gc-sections \
+        -o "$ROOT/tests/test_mod_saves" \
+        "$ROOT/tests/test_mod_saves.c" \
+        "$ROOT/src/save_mods.c" "$ROOT/src/mod_loader.c" \
+        "$ROOT/src/mod_ini.c" "$ROOT/src/mod_registry.c"
+    "$ROOT/tests/test_mod_saves"
+fi
+
 if [ -f "$ROOT/tests/test_map_wire.c" ]; then
     "$CC" -I "$ROOT/src" -Wall -Wextra -Werror \
         -o "$ROOT/tests/test_map_wire" "$ROOT/tests/test_map_wire.c"
@@ -274,6 +287,8 @@ if [ -x "${LINCITY_ASAN_BIN:-$ROOT/xlincity}" ] \
     "$ROOT/tests/run_mod_loader.sh" \
         --binary "${LINCITY_ASAN_BIN:-$ROOT/xlincity}"
     "$ROOT/tests/run_save_roundtrip.sh" \
+        --binary "${LINCITY_ASAN_BIN:-$ROOT/xlincity}"
+    "$ROOT/tests/run_mod_saves.sh" \
         --binary "${LINCITY_ASAN_BIN:-$ROOT/xlincity}"
     "$ROOT/tests/run_save_rollback.sh" \
         --binary "${LINCITY_ASAN_BIN:-$ROOT/xlincity}" \

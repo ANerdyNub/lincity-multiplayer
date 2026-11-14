@@ -179,9 +179,9 @@ am__objects_3 = src/lclib.$(OBJEXT) src/power.$(OBJEXT) \
 	src/simulate.$(OBJEXT) src/shrtypes.$(OBJEXT) \
 	src/lintypes.$(OBJEXT) src/mod_registry.$(OBJEXT) \
 	src/mod_ini.$(OBJEXT) src/mod_loader.$(OBJEXT) \
-	src/readpng.$(OBJEXT) src/timer.$(OBJEXT) \
-	src/fileutil.$(OBJEXT) src/shrglobs.$(OBJEXT) \
-	src/stats.$(OBJEXT)
+	src/save_mods.$(OBJEXT) src/readpng.$(OBJEXT) \
+	src/timer.$(OBJEXT) src/fileutil.$(OBJEXT) \
+	src/shrglobs.$(OBJEXT) src/stats.$(OBJEXT)
 am_lincity_OBJECTS = $(am__objects_3)
 lincity_OBJECTS = $(am_lincity_OBJECTS)
 am_picedit_OBJECTS =
@@ -235,9 +235,10 @@ am__depfiles_remade = src/$(DEPDIR)/engine.Po \
 	src/$(DEPDIR)/mod_ini.Po src/$(DEPDIR)/mod_loader.Po \
 	src/$(DEPDIR)/mod_registry.Po src/$(DEPDIR)/picedit.Po \
 	src/$(DEPDIR)/power.Po src/$(DEPDIR)/readpng.Po \
-	src/$(DEPDIR)/shrglobs.Po src/$(DEPDIR)/shrtypes.Po \
-	src/$(DEPDIR)/simulate.Po src/$(DEPDIR)/stats.Po \
-	src/$(DEPDIR)/timer.Po src/$(DEPDIR)/transport.Po
+	src/$(DEPDIR)/save_mods.Po src/$(DEPDIR)/shrglobs.Po \
+	src/$(DEPDIR)/shrtypes.Po src/$(DEPDIR)/simulate.Po \
+	src/$(DEPDIR)/stats.Po src/$(DEPDIR)/timer.Po \
+	src/$(DEPDIR)/transport.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -546,7 +547,7 @@ noinst_HEADERS = \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
 	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
-	src/resource.h	 src/save_parse.h src/screen.h \
+	src/resource.h	 src/save_mods.h src/save_parse.h src/screen.h \
 	src/shrglobs.h   src/stats.h \
 	src/simulate.h   src/timer.h	 src/transport.h \
 	src/typeinit.h   src/validation.h src/xpicedit.h	src/modules.h
@@ -592,7 +593,7 @@ gui_SOURCES = src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
 engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
 	src/transport.c src/market.c src/simulate.c src/shrtypes.c \
 	src/lintypes.c src/mod_registry.c src/mod_ini.c src/mod_loader.c \
-	src/readpng.c src/timer.c \
+	src/save_mods.c src/readpng.c src/timer.c \
 	src/fileutil.c src/shrglobs.c src/stats.c
 
 liblcx_la_SHORTNAME = lcx
@@ -827,6 +828,8 @@ src/mod_ini.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/mod_loader.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/save_mods.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/readpng.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/timer.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
@@ -906,6 +909,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/picedit.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/power.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/readpng.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/save_mods.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/shrglobs.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/shrtypes.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/simulate.Po@am__quote@ # am--include-marker
@@ -1649,6 +1653,7 @@ distclean: distclean-recursive
 	-rm -f src/$(DEPDIR)/picedit.Po
 	-rm -f src/$(DEPDIR)/power.Po
 	-rm -f src/$(DEPDIR)/readpng.Po
+	-rm -f src/$(DEPDIR)/save_mods.Po
 	-rm -f src/$(DEPDIR)/shrglobs.Po
 	-rm -f src/$(DEPDIR)/shrtypes.Po
 	-rm -f src/$(DEPDIR)/simulate.Po
@@ -1747,6 +1752,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f src/$(DEPDIR)/picedit.Po
 	-rm -f src/$(DEPDIR)/power.Po
 	-rm -f src/$(DEPDIR)/readpng.Po
+	-rm -f src/$(DEPDIR)/save_mods.Po
 	-rm -f src/$(DEPDIR)/shrglobs.Po
 	-rm -f src/$(DEPDIR)/shrtypes.Po
 	-rm -f src/$(DEPDIR)/simulate.Po

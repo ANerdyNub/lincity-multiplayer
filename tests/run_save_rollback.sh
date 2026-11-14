@@ -45,15 +45,18 @@ fi
 run_batch "$TMP/seed.gz" "$TMP/A.gz"
 run_batch "$TMP/A.gz" "$TMP/D.gz"
 
-python3 - "$TMP/A.gz" "$TMP" <<'PY'
+MAP_START=$(python3 "$ROOT/tests/save_mod_header.py" "$TMP/A.gz")
+
+python3 - "$TMP/A.gz" "$TMP" "$MAP_START" <<'PY'
 import gzip
 import os
 import sys
 
 src, out = sys.argv[1], sys.argv[2]
+map_start = int(sys.argv[3])
 with gzip.open(src, "rt") as f:
     lines = f.read().splitlines()
-map_end = 1 + 10000 * 42
+map_end = map_start + 10000 * 42
 sub_count = map_end + 3 + 512 * 2
 market_count = sub_count + 1 + 512 * 2
 scalar = market_count + 1
@@ -65,7 +68,7 @@ def write(name, data):
         f.write("\n".join(data) + "\n")
 
 write("early_map", lines[:1000])
-write("late_map", lines[:420000])
+write("late_map", lines[:map_end])
 changed = list(lines)
 changed[sub_count] = "513"
 write("substation_count", changed)
