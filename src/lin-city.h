@@ -46,7 +46,8 @@
 
 /* VERSION_INT is used in the load/save code.  All other code uses 
    the symbol VERSION in config.h */
-#define VERSION_INT 112
+/* Version 113 added the versioned mod header and stable type mapping. */
+#define VERSION_INT 113
 
 /* Don't load if < MIN_LOAD_VERSION */
 #define MIN_LOAD_VERSION 97

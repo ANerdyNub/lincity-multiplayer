@@ -71,6 +71,7 @@
 #include "pbar.h"
 #include "stats.h"
 #include "validation.h"
+#include "save_mods.h"
 
 #if defined (WIN32) && !defined (NDEBUG)
 #define START_FAST_SPEED 1
@@ -125,6 +126,16 @@ save_city_raw (char *cname)
     }
 
     gzprintf (ofile, "%d\n", (int) VERSION_INT);
+    {
+	char *mod_header = save_mod_header_format ();
+
+	if (mod_header == NULL || gzputs (ofile, mod_header) < 0) {
+	    free (mod_header);
+	    gzclose (ofile);
+	    do_error (_("Can't write the mod save header!"));
+	}
+	free (mod_header);
+    }
     prog_box (_("Saving scene"), 0);
     check_endian ();
     for (x = 0; x < WORLD_SIDE_LEN; x++) {
@@ -558,6 +569,7 @@ load_city (char *cname)
     struct load_scalar_backup scalar_backup;
     FILE *ofile;
     char s[256];
+    char header_err[256];
 
     if ((ofile = fopen_read_gzipped (cname)) == NULL) {
 	if (headless_mode) {
@@ -585,6 +597,21 @@ load_city (char *cname)
 	return 0;
     }
 
+    /* Validate the versioned mod block before the map or any running-city
+       state is touched.  Old saves have no block and fall through. */
+    if (ver >= SAVE_MOD_HEADER_SAVE_VERSION) {
+	if (!save_mod_header_read (ofile, header_err, sizeof header_err)) {
+	    fprintf (stderr, "load_city: cannot load %s: %s\n",
+		     cname, header_err);
+	    fclose_read_gzipped (ofile);
+	    if (!headless_mode)
+		ok_dial_box ("error.mes", BAD, 0L);
+	    return 0;
+	}
+    } else {
+	save_mod_header_reset ();
+    }
+
     backup = (Map *) malloc (sizeof *backup);
     if (backup == NULL)
 	malloc_failure ();
@@ -607,6 +634,12 @@ load_city (char *cname)
     if (!save_read_map (ofile, &map))
 	goto load_corrupt;
     check_endian ();
+    if (ver >= SAVE_MOD_HEADER_SAVE_VERSION
+	&& !save_mod_remap_types (map.type, header_err, sizeof header_err)) {
+	fprintf (stderr, "load_city: cannot remap %s: %s\n",
+		 cname, header_err);
+	goto load_corrupt;
+    }
     set_map_groups ();
 
     LOAD_INT (load_originx);

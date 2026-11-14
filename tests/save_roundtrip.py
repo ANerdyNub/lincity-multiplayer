@@ -11,6 +11,8 @@ import re
 import sys
 from pathlib import Path
 
+from save_mod_header import read_save_header
+
 WORLD = 100
 CELL_LINES = 42
 MM_MS_C_VER = 97
@@ -127,8 +129,7 @@ def read_save(path):
     if raw[:2] == b"\x1f\x8b":
         raw = gzip.decompress(raw)
     lines = raw.decode("utf-8").splitlines()
-    pos = 1
-    version = int(lines[0])
+    version, _mods, _types, pos = read_save_header(lines)
     cells, pos = read_map(lines, pos)
 
     def take(n=1):
