@@ -30,7 +30,7 @@ noinst_HEADERS = \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
 	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
-	src/resource.h	 src/save_parse.h src/screen.h \
+	src/resource.h	 src/save_mods.h src/save_parse.h src/screen.h \
 	src/shrglobs.h   src/stats.h \
 	src/simulate.h   src/timer.h	 src/transport.h \
 	src/typeinit.h   src/validation.h src/xpicedit.h	src/modules.h
@@ -184,7 +184,7 @@ gui_SOURCES =	src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
 engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
 	src/transport.c src/market.c src/simulate.c src/shrtypes.c \
 	src/lintypes.c src/mod_registry.c src/mod_ini.c src/mod_loader.c \
-	src/readpng.c src/timer.c \
+	src/save_mods.c src/readpng.c src/timer.c \
 	src/fileutil.c src/shrglobs.c src/stats.c
 
 liblcx_la_SHORTNAME = lcx

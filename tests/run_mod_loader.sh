@@ -62,7 +62,11 @@ run --mod-dir "$MODS/valid" --load "$ROOT/opening/good_times.scn" \
 run --load "$ROOT/opening/good_times.scn" \
     --save "$TMP/base.scn" --ticks 1 --seed 1 >"$TMP/base.log" 2>&1 \
     || { cat "$TMP/base.log" >&2; fail "batch baseline run failed"; }
-cmp -s "$TMP/base.scn" "$TMP/mod.scn" \
+# The versioned mod block records the enabled mod, so it is expected to
+# differ.  Compare the simulation payload below the header instead.
+gzip -dc "$TMP/base.scn" | sed '1,/^end$/d' >"$TMP/base.payload"
+gzip -dc "$TMP/mod.scn" | sed '1,/^end$/d' >"$TMP/mod.payload"
+cmp -s "$TMP/base.payload" "$TMP/mod.payload" \
     || fail "loading a data-only mod changed base simulation output"
 
 mkdir -p "$TMP/badmod/bad"

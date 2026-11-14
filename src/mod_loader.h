@@ -50,5 +50,6 @@ int mod_loader_load (const char *dir, const char *conf,
 size_t mod_loader_enabled_count (void);
 const char *mod_loader_enabled_id (size_t index);
 const char *mod_loader_enabled_version (size_t index);
+int mod_loader_enabled_api (size_t index);
 
 #endif /* __mod_loader_h__ */
