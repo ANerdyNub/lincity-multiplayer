@@ -36,6 +36,15 @@ struct GROUP_SPEC
     int fire_chance;
     int cost;
     int tech;
+    char category[GROUP_CATEGORY_LEN + 1];
+    int order;
+    int has_order;
+    char button[MOD_PATH_MAX + 1];
+    int has_button;
+    char *button_data;
+    char help[MOD_PATH_MAX + 1];
+    int has_help;
+    char help_path[MOD_PATH_MAX + 1];
     char graphic[MOD_PATH_MAX + 1];
     char *graphic_data;
     const struct MOD_BEHAVIOR *behavior_def;
@@ -44,6 +53,7 @@ struct GROUP_SPEC
 struct TYPE_SPEC
 {
     char key[MOD_KEY_LEN + 1];
+    char name[TYPE_NAME_LEN + 1];
     char group_key[MOD_KEY_LEN + 1];
     int type_id;
     int owns_graphic;
@@ -291,7 +301,8 @@ group_key_known (const char *key)
 {
     static const char *const keys[] = {
         "name", "behavior", "size", "no_credit", "colour", "cost_mul",
-        "bul_cost", "fire_chance", "cost", "tech", "type", "graphic"
+        "bul_cost", "fire_chance", "cost", "tech", "type", "graphic",
+        "category", "order", "button", "help"
     };
     size_t i;
 
@@ -357,6 +368,7 @@ parse_group_section (struct MOD_SPEC *mod, const struct MOD_INI *ini,
 
     memset (&group, 0, sizeof group);
     copy_text (group.key, sizeof group.key, suffix);
+    copy_text (group.category, sizeof group.category, "Mods");
     name = mod_ini_get (ini, section, "name");
     behavior = mod_ini_get (ini, section, "behavior");
     value = mod_ini_get (ini, section, "graphic");
@@ -378,6 +390,44 @@ parse_group_section (struct MOD_SPEC *mod, const struct MOD_INI *ini,
     copy_text (group.name, sizeof group.name, name);
     copy_lower (group.behavior, sizeof group.behavior, behavior);
     copy_text (group.graphic, sizeof group.graphic, value);
+
+    if ((value = mod_ini_get (ini, section, "category")) != NULL) {
+        if (value[0] == '\0' || strlen (value) > GROUP_CATEGORY_LEN) {
+            set_error (err, err_size,
+                       "mod %s: group '%s' has invalid category",
+                       mod->id, suffix);
+            return 0;
+        }
+        copy_text (group.category, sizeof group.category, value);
+    }
+    if ((value = mod_ini_get (ini, section, "order")) != NULL) {
+        if (!parse_int (value, -1000000, 1000000, &group.order)) {
+            set_error (err, err_size, "mod %s: group '%s' has invalid order",
+                       mod->id, suffix);
+            return 0;
+        }
+        group.has_order = 1;
+    }
+    if ((value = mod_ini_get (ini, section, "button")) != NULL) {
+        if (value[0] == '\0' || strlen (value) > MOD_PATH_MAX) {
+            set_error (err, err_size,
+                       "mod %s: group '%s' has invalid button",
+                       mod->id, suffix);
+            return 0;
+        }
+        copy_text (group.button, sizeof group.button, value);
+        group.has_button = 1;
+    }
+    if ((value = mod_ini_get (ini, section, "help")) != NULL) {
+        if (value[0] == '\0' || strlen (value) > MOD_PATH_MAX) {
+            set_error (err, err_size,
+                       "mod %s: group '%s' has invalid help",
+                       mod->id, suffix);
+            return 0;
+        }
+        copy_text (group.help, sizeof group.help, value);
+        group.has_help = 1;
+    }
 
     group.size = 1;
     group.cost_mul = 1;
@@ -496,6 +546,16 @@ parse_type_section (struct MOD_SPEC *mod, const struct MOD_INI *ini,
 
     memset (&type, 0, sizeof type);
     copy_text (type.key, sizeof type.key, suffix);
+    value = mod_ini_get (ini, section, "name");
+    if (value != NULL) {
+        if (value[0] == '\0' || strlen (value) > TYPE_NAME_LEN) {
+            set_error (err, err_size,
+                       "mod %s: type '%s' has invalid name",
+                       mod->id, suffix);
+            return 0;
+        }
+        copy_text (type.name, sizeof type.name, value);
+    }
     value = mod_ini_get (ini, section, "group");
     if (value == NULL || value[0] == '\0') {
         set_error (err, err_size, "mod %s: type '%s' has no group",
@@ -1049,8 +1109,11 @@ free_specs (struct MOD_SPEC *mods, int count, int free_graphics)
         return;
     if (free_graphics) {
         for (i = 0; i < count; i++) {
-            for (j = 0; j < mods[i].group_count; j++)
+            for (j = 0; j < mods[i].group_count; j++) {
+                if (mods[i].groups[j].has_button)
+                    free (mods[i].groups[j].button_data);
                 free (mods[i].groups[j].graphic_data);
+            }
             for (j = 0; j < mods[i].type_count; j++) {
                 if (mods[i].types[j].owns_graphic)
                     free (mods[i].types[j].graphic_data);
@@ -1171,6 +1234,51 @@ load_graphics (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
                                                   : group->graphic);
                 return 0;
             }
+
+            if (!group->has_button) {
+                group->button_data = group->graphic_data;
+            } else {
+                if (!join_relative (path, sizeof path, mod->dir, group->button)) {
+                    set_error (err, err_size,
+                               "mod %s: group '%s' has an unsafe button path",
+                               mod->id, group->key);
+                    return 0;
+                }
+                if (!file_exists (path)) {
+                    set_error (err, err_size,
+                               "mod %s: group '%s' button is missing: %s",
+                               mod->id, group->key, group->button);
+                    return 0;
+                }
+                graphic_err[0] = '\0';
+                group->button_data = load_graphic (path, graphic_err,
+                                                   sizeof graphic_err);
+                if (group->button_data == NULL) {
+                    set_error (err, err_size,
+                               "mod %s: group '%s' button failed: %s",
+                               mod->id, group->key,
+                               graphic_err[0] != '\0' ? graphic_err
+                                                      : group->button);
+                    return 0;
+                }
+            }
+
+            if (group->has_help) {
+                if (!join_relative (group->help_path,
+                                    sizeof group->help_path, mod->dir,
+                                    group->help)) {
+                    set_error (err, err_size,
+                               "mod %s: group '%s' has an unsafe help path",
+                               mod->id, group->key);
+                    return 0;
+                }
+                if (!file_exists (group->help_path)) {
+                    set_error (err, err_size,
+                               "mod %s: group '%s' help page is missing: %s",
+                               mod->id, group->key, group->help);
+                    return 0;
+                }
+            }
         }
         for (j = 0; j < mod->type_count; j++) {
             struct TYPE_SPEC *type = &mod->types[j];
@@ -1259,6 +1367,21 @@ commit_mods (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
             desc.fire_chance = group->fire_chance;
             desc.cost = group->cost;
             desc.tech = group->tech;
+            copy_text (desc.category, sizeof desc.category, group->category);
+            desc.menu_order = group->has_order ? group->order : 1000 + i;
+            desc.button = group->button_data;
+            copy_text (desc.help, sizeof desc.help, group->help_path);
+            {
+                int primary = find_type_spec (mod, group->key);
+
+                if (primary < 0) {
+                    set_error (err, err_size,
+                               "mod %s: group '%s' has no primary type",
+                               mod->id, group->key);
+                    goto fail;
+                }
+                desc.default_type = mod->types[primary].type_id;
+            }
             if (!build_key (key, sizeof key, mod->id, group->key)) {
                 set_error (err, err_size,
                            "mod %s: group key is too long", mod->id);
@@ -1293,6 +1416,13 @@ commit_mods (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
                                           type->graphic_data)) {
                 set_error (err, err_size,
                            "mod %s: failed to register type '%s'",
+                           mod->id, type->key);
+                goto fail;
+            }
+            if (type->name[0] != '\0'
+                && !mod_set_type_name (type->type_id, type->name)) {
+                set_error (err, err_size,
+                           "mod %s: failed to name type '%s'",
                            mod->id, type->key);
                 goto fail;
             }

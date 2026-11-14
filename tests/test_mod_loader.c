@@ -122,9 +122,22 @@ test_valid_mod (void)
     CHECK (mod_find_type_by_key ("test_park.park") == 400);
     CHECK (mod_find_type_by_key ("test_park.park_alt") == 401);
     CHECK (strcmp (main_groups[42].owner, "test_park") == 0);
+    CHECK (strcmp (main_groups[42].category, "Parks") == 0);
+    CHECK (main_groups[42].menu_order == 42);
+    CHECK (main_groups[42].default_type == 400);
+    CHECK (main_groups[42].button != NULL);
+    CHECK (main_groups[42].button != main_types[400].graphic);
+    CHECK (strstr (main_groups[42].help, "park.hlp") != NULL);
     CHECK (main_types[400].graphic != NULL);
     CHECK (main_types[401].graphic != NULL);
     CHECK (main_types[400].graphic != main_types[401].graphic);
+    CHECK (strcmp (main_types[401].name, "Alt Park") == 0);
+    CHECK (main_types[400].name[0] == '\0');
+    CHECK (mod_group_type_count (42) == 2);
+    CHECK (mod_group_type_at (42, 0) == 400);
+    CHECK (mod_group_type_at (42, 1) == 401);
+    CHECK (mod_group_type_at (42, 2) == -1);
+    CHECK (mod_group_default_type (42) == 400);
     CHECK (mod_loader_enabled_count () == 1);
     CHECK (strcmp (mod_loader_enabled_id (0), "test_park") == 0);
     CHECK (strcmp (mod_loader_enabled_version (0), "1.0.0") == 0);
@@ -138,7 +151,7 @@ test_valid_mod (void)
     CHECK (strcmp (mod_ini_get (&ini, "mod", "id"), "test_park") == 0);
     CHECK (strcmp (mod_ini_get (&ini, "group:park", "behavior"),
                    "parkland") == 0);
-    CHECK (mod_ini_section_count (&ini, "group:park") == 7);
+    CHECK (mod_ini_section_count (&ini, "group:park") == 11);
     mod_ini_free (&ini);
 
     mod_loader_shutdown ();
@@ -159,6 +172,13 @@ test_config_order (void)
     CHECK (mod_find_group_by_key ("config_a.park") == 43);
     CHECK (mod_find_type_by_key ("config_b.park") == 400);
     CHECK (mod_find_type_by_key ("config_a.park") == 401);
+    CHECK (strcmp (main_groups[42].category, "Mods") == 0);
+    CHECK (strcmp (main_groups[43].category, "Mods") == 0);
+    CHECK (main_groups[42].menu_order == 1000);
+    CHECK (main_groups[43].menu_order == 1001);
+    CHECK (main_groups[42].button == main_types[400].graphic);
+    CHECK (main_groups[43].button == main_types[401].graphic);
+    CHECK (main_groups[42].help[0] == '\0');
     CHECK (mod_loader_enabled_count () == 2);
     CHECK (strcmp (mod_loader_enabled_id (0), "config_b") == 0);
     CHECK (strcmp (mod_loader_enabled_id (1), "config_a") == 0);

@@ -10,6 +10,9 @@
 
 #define MAX_HELP_LINE     256  /* Max size of a line of a help file (+1) */
 
+/* Runtime-only tile registry for help pages that show mod graphics. */
+void help_register_tile (const char *name, char *tile);
+
 void do_help_mouse (int, int, int);
 void do_prefs_mouse (int, int, int);
 void refresh_help_page (void);

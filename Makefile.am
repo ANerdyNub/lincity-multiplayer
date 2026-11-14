@@ -26,7 +26,7 @@ noinst_HEADERS = \
 	src/ldsvgui.h    src/ldsvguts.h   \
 	src/lin-city.h   src/lincity_plugin.h src/lintypes.h src/market.h \
 	src/mapwire.h    src/mod_registry.h src/module_buttons.h \
-	src/mod_ini.h    src/mod_loader.h \
+	src/mod_ini.h    src/mod_loader.h src/mod_menu.h \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
 	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
@@ -178,7 +178,8 @@ lib_LTLIBRARIES = @LCLIBS@
 
 gui_SOURCES =	src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
 	src/mps.c src/screen.c src/pixmap.c src/cliglobs.c src/geometry.c \
-	src/pbar.c src/module_buttons.c src/dialbox.c src/network.c
+	src/pbar.c src/module_buttons.c src/mod_menu.c src/dialbox.c \
+	src/network.c
 
 engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
 	src/transport.c src/market.c src/simulate.c src/shrtypes.c \

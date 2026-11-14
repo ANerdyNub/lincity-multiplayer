@@ -157,7 +157,8 @@ am__objects_1 = src/lcsvga-ldsvgui.lo src/lcsvga-splash.lo \
 	src/lcsvga-mps.lo src/lcsvga-screen.lo src/lcsvga-pixmap.lo \
 	src/lcsvga-cliglobs.lo src/lcsvga-geometry.lo \
 	src/lcsvga-pbar.lo src/lcsvga-module_buttons.lo \
-	src/lcsvga-dialbox.lo src/lcsvga-network.lo
+	src/lcsvga-mod_menu.lo src/lcsvga-dialbox.lo \
+	src/lcsvga-network.lo
 am_liblcsvga_la_OBJECTS = $(am__objects_1) src/lcsvga-lcsvga.lo
 liblcsvga_la_OBJECTS = $(am_liblcsvga_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -169,7 +170,7 @@ am__objects_2 = src/lcx-ldsvgui.lo src/lcx-splash.lo src/lcx-lchelp.lo \
 	src/lcx-main.lo src/lcx-mouse.lo src/lcx-mps.lo \
 	src/lcx-screen.lo src/lcx-pixmap.lo src/lcx-cliglobs.lo \
 	src/lcx-geometry.lo src/lcx-pbar.lo src/lcx-module_buttons.lo \
-	src/lcx-dialbox.lo src/lcx-network.lo
+	src/lcx-mod_menu.lo src/lcx-dialbox.lo src/lcx-network.lo
 am_liblcx_la_OBJECTS = $(am__objects_2) src/lcx-lcx11.lo
 liblcx_la_OBJECTS = $(am_liblcx_la_OBJECTS)
 am__objects_3 = src/lclib.$(OBJEXT) src/power.$(OBJEXT) \
@@ -214,6 +215,7 @@ am__depfiles_remade = src/$(DEPDIR)/engine.Po \
 	src/$(DEPDIR)/lcsvga-lchelp.Plo \
 	src/$(DEPDIR)/lcsvga-lcsvga.Plo \
 	src/$(DEPDIR)/lcsvga-ldsvgui.Plo src/$(DEPDIR)/lcsvga-main.Plo \
+	src/$(DEPDIR)/lcsvga-mod_menu.Plo \
 	src/$(DEPDIR)/lcsvga-module_buttons.Plo \
 	src/$(DEPDIR)/lcsvga-mouse.Plo src/$(DEPDIR)/lcsvga-mps.Plo \
 	src/$(DEPDIR)/lcsvga-network.Plo src/$(DEPDIR)/lcsvga-pbar.Plo \
@@ -223,6 +225,7 @@ am__depfiles_remade = src/$(DEPDIR)/engine.Po \
 	src/$(DEPDIR)/lcx-dialbox.Plo src/$(DEPDIR)/lcx-geometry.Plo \
 	src/$(DEPDIR)/lcx-lchelp.Plo src/$(DEPDIR)/lcx-lcx11.Plo \
 	src/$(DEPDIR)/lcx-ldsvgui.Plo src/$(DEPDIR)/lcx-main.Plo \
+	src/$(DEPDIR)/lcx-mod_menu.Plo \
 	src/$(DEPDIR)/lcx-module_buttons.Plo \
 	src/$(DEPDIR)/lcx-mouse.Plo src/$(DEPDIR)/lcx-mps.Plo \
 	src/$(DEPDIR)/lcx-network.Plo src/$(DEPDIR)/lcx-pbar.Plo \
@@ -539,7 +542,7 @@ noinst_HEADERS = \
 	src/ldsvgui.h    src/ldsvguts.h   \
 	src/lin-city.h   src/lincity_plugin.h src/lintypes.h src/market.h \
 	src/mapwire.h    src/mod_registry.h src/module_buttons.h \
-	src/mod_ini.h    src/mod_loader.h \
+	src/mod_ini.h    src/mod_loader.h src/mod_menu.h \
 	src/mouse.h      src/mps.h	  src/pbar.h    \
 	src/network.h    src/picedit.h    src/pixmap.h  src/power.h \
 	src/readpng.h \
@@ -583,7 +586,8 @@ bin_PROGRAMS = @PROGS@
 lib_LTLIBRARIES = @LCLIBS@
 gui_SOURCES = src/ldsvgui.c src/splash.c src/lchelp.c src/main.c src/mouse.c \
 	src/mps.c src/screen.c src/pixmap.c src/cliglobs.c src/geometry.c \
-	src/pbar.c src/module_buttons.c src/dialbox.c src/network.c
+	src/pbar.c src/module_buttons.c src/mod_menu.c src/dialbox.c \
+	src/network.c
 
 engine_SOURCES = src/lclib.c src/power.c src/ldsvguts.c src/engine.c \
 	src/transport.c src/market.c src/simulate.c src/shrtypes.c \
@@ -770,6 +774,8 @@ src/lcsvga-geometry.lo: src/$(am__dirstamp) \
 src/lcsvga-pbar.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/lcsvga-module_buttons.lo: src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/lcsvga-mod_menu.lo: src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/lcsvga-dialbox.lo: src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/lcsvga-network.lo: src/$(am__dirstamp) \
@@ -792,6 +798,7 @@ src/lcx-geometry.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/lcx-pbar.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/lcx-module_buttons.lo: src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/lcx-mod_menu.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/lcx-dialbox.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/lcx-network.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/lcx-lcx11.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
@@ -865,6 +872,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcsvga-lcsvga.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcsvga-ldsvgui.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcsvga-main.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcsvga-mod_menu.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcsvga-module_buttons.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcsvga-mouse.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcsvga-mps.Plo@am__quote@ # am--include-marker
@@ -880,6 +888,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcx-lcx11.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcx-ldsvgui.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcx-main.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcx-mod_menu.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcx-module_buttons.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcx-mouse.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/lcx-mps.Plo@am__quote@ # am--include-marker
@@ -1018,6 +1027,13 @@ src/lcsvga-module_buttons.lo: src/module_buttons.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcsvga_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/lcsvga-module_buttons.lo `test -f 'src/module_buttons.c' || echo '$(srcdir)/'`src/module_buttons.c
 
+src/lcsvga-mod_menu.lo: src/mod_menu.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcsvga_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/lcsvga-mod_menu.lo -MD -MP -MF src/$(DEPDIR)/lcsvga-mod_menu.Tpo -c -o src/lcsvga-mod_menu.lo `test -f 'src/mod_menu.c' || echo '$(srcdir)/'`src/mod_menu.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/lcsvga-mod_menu.Tpo src/$(DEPDIR)/lcsvga-mod_menu.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/mod_menu.c' object='src/lcsvga-mod_menu.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcsvga_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/lcsvga-mod_menu.lo `test -f 'src/mod_menu.c' || echo '$(srcdir)/'`src/mod_menu.c
+
 src/lcsvga-dialbox.lo: src/dialbox.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcsvga_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/lcsvga-dialbox.lo -MD -MP -MF src/$(DEPDIR)/lcsvga-dialbox.Tpo -c -o src/lcsvga-dialbox.lo `test -f 'src/dialbox.c' || echo '$(srcdir)/'`src/dialbox.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/lcsvga-dialbox.Tpo src/$(DEPDIR)/lcsvga-dialbox.Plo
@@ -1122,6 +1138,13 @@ src/lcx-module_buttons.lo: src/module_buttons.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/module_buttons.c' object='src/lcx-module_buttons.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcx_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/lcx-module_buttons.lo `test -f 'src/module_buttons.c' || echo '$(srcdir)/'`src/module_buttons.c
+
+src/lcx-mod_menu.lo: src/mod_menu.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcx_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/lcx-mod_menu.lo -MD -MP -MF src/$(DEPDIR)/lcx-mod_menu.Tpo -c -o src/lcx-mod_menu.lo `test -f 'src/mod_menu.c' || echo '$(srcdir)/'`src/mod_menu.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/lcx-mod_menu.Tpo src/$(DEPDIR)/lcx-mod_menu.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/mod_menu.c' object='src/lcx-mod_menu.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcx_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/lcx-mod_menu.lo `test -f 'src/mod_menu.c' || echo '$(srcdir)/'`src/mod_menu.c
 
 src/lcx-dialbox.lo: src/dialbox.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(liblcx_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/lcx-dialbox.lo -MD -MP -MF src/$(DEPDIR)/lcx-dialbox.Tpo -c -o src/lcx-dialbox.lo `test -f 'src/dialbox.c' || echo '$(srcdir)/'`src/dialbox.c
@@ -1592,6 +1615,7 @@ distclean: distclean-recursive
 	-rm -f src/$(DEPDIR)/lcsvga-lcsvga.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-ldsvgui.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-main.Plo
+	-rm -f src/$(DEPDIR)/lcsvga-mod_menu.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-module_buttons.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-mouse.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-mps.Plo
@@ -1607,6 +1631,7 @@ distclean: distclean-recursive
 	-rm -f src/$(DEPDIR)/lcx-lcx11.Plo
 	-rm -f src/$(DEPDIR)/lcx-ldsvgui.Plo
 	-rm -f src/$(DEPDIR)/lcx-main.Plo
+	-rm -f src/$(DEPDIR)/lcx-mod_menu.Plo
 	-rm -f src/$(DEPDIR)/lcx-module_buttons.Plo
 	-rm -f src/$(DEPDIR)/lcx-mouse.Plo
 	-rm -f src/$(DEPDIR)/lcx-mps.Plo
@@ -1688,6 +1713,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f src/$(DEPDIR)/lcsvga-lcsvga.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-ldsvgui.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-main.Plo
+	-rm -f src/$(DEPDIR)/lcsvga-mod_menu.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-module_buttons.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-mouse.Plo
 	-rm -f src/$(DEPDIR)/lcsvga-mps.Plo
@@ -1703,6 +1729,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f src/$(DEPDIR)/lcx-lcx11.Plo
 	-rm -f src/$(DEPDIR)/lcx-ldsvgui.Plo
 	-rm -f src/$(DEPDIR)/lcx-main.Plo
+	-rm -f src/$(DEPDIR)/lcx-mod_menu.Plo
 	-rm -f src/$(DEPDIR)/lcx-module_buttons.Plo
 	-rm -f src/$(DEPDIR)/lcx-mouse.Plo
 	-rm -f src/$(DEPDIR)/lcx-mps.Plo

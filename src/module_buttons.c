@@ -7,8 +7,12 @@
 #include "mouse.h"
 #include "lcintl.h"
 #include "lctypes.h"
+#include "lintypes.h"
 #include "lclib.h"
 #include "lchelp.h"
+#include "fileutil.h"
+#include "mod_registry.h"
+#include "mod_menu.h"
 
 #define DEBUG_MODULES 0
 
@@ -33,8 +37,121 @@ int selected_module_type;
 int selected_module_group;
 int selected_module_cost;
 
+static int module_page;
+static int selected_page;
 static int pending_module = -1;
+static int pending_page = -1;
 
+/* Type chooser state.  The help page name is mp<group>.tmp; page changes
+   rewrite the same file so the 40-char help-history entry stays stable. */
+#define MOD_CHOOSER_COLUMNS 3
+#define MOD_CHOOSER_ROWS    8
+#define MOD_CHOOSER_PER_PAGE (MOD_CHOOSER_COLUMNS * MOD_CHOOSER_ROWS)
+static int chooser_group = -1;
+static int chooser_page;
+static int chooser_pages;
+
+static struct MOD_MENU_ENTRY *
+current_entry (int slot)
+{
+    return mod_menu_entry (module_page, slot);
+}
+
+static int
+entry_available (struct MOD_MENU_ENTRY *entry, int slot)
+{
+    return entry->base ? module_tflag[slot] : entry->available;
+}
+
+static int
+entry_help_seen (struct MOD_MENU_ENTRY *entry, int slot)
+{
+    return entry->base ? module_help_flag[slot] : entry->help_seen;
+}
+
+static void
+set_entry_help_seen (struct MOD_MENU_ENTRY *entry, int slot)
+{
+    if (entry->base)
+        module_help_flag[slot] = 1;
+    else
+        entry->help_seen = 1;
+}
+
+static void
+entry_help_name (struct MOD_MENU_ENTRY *entry, char *name, size_t size)
+{
+    if (entry->base || entry->help[0] == '\0')
+        snprintf (name, size, "%s", entry->help);
+    else if (entry->group >= 0)
+        snprintf (name, size, "mod%d.hlp", entry->group);
+    else
+        name[0] = '\0';
+}
+
+static void
+draw_page_indicator (void)
+{
+    char text[32];
+    int count = mod_menu_page_count ();
+
+    if (count <= 1)
+        return;
+    snprintf (text, sizeof text, "%d/%d", module_page + 1, count);
+    Fgl_setfontcolors (white (20), 0);
+    Fgl_write (mbw->x + 4, mbw->y + mbw->h - 8, text);
+    Fgl_setfontcolors (TEXT_BG_COLOUR, TEXT_FG_COLOUR);
+}
+
+static void module_choose_type (int group, int index);
+static void open_type_chooser (int group, int page);
+
+/* The selected button only has a highlight on its own page. */
+static void
+unhighlight_selected (void)
+{
+    if (selected_page == module_page && selected_module >= 0)
+        unhighlight_module_button (selected_module);
+}
+
+
+static int
+build_module_menu (void)
+{
+    int i;
+    int group;
+
+    mod_menu_reset ();
+    for (i = 0; i < NUMOF_MODULES; i++) {
+        if (!mod_menu_add_base (inv_sbut (i), module_type[i],
+                                module_graphic[i], module_help[i]))
+            return 0;
+    }
+
+    /* Registry groups above the base range are mod-owned.  Group 41 is the
+       legacy EOF sentinel and is never registered. */
+    for (group = NUM_OF_GROUPS; group < num_groups; group++) {
+        char help[24];
+        int type;
+
+        if (main_groups[group].key[0] == '\0')
+            continue;
+        type = mod_group_default_type (group);
+        if (type < 0)
+            continue;
+        help[0] = '\0';
+        if (main_groups[group].help[0] != '\0')
+            snprintf (help, sizeof help, "mod%d.hlp", group);
+        if (!mod_menu_add_mod (group, type,
+                               main_groups[group].button != NULL
+                                   ? main_groups[group].button
+                                   : main_types[type].graphic,
+                               help, main_groups[group].category,
+                               main_groups[group].menu_order))
+            return 0;
+    }
+    return mod_menu_build ();
+}
 
 void
 init_modules (void)
@@ -225,12 +342,20 @@ init_modules (void)
 	module_tflag[i] = 0;
     }
 
-    /* select track (which will be enabled later) */
-#if defined (commentout)
-    selected_module_type = CST_TRACK_LR;
-    selected_module_cost = GROUP_TRACK_COST;
-    selected_module_group = get_group_of_type(selected_module_type);
-#endif
+    if (!build_module_menu ()) {
+        int j;
+
+        fprintf (stderr, "modules: cannot build mod menu pages; "
+                         "showing the base page only\n");
+        mod_menu_reset ();
+        for (j = 0; j < NUMOF_MODULES; j++)
+            mod_menu_add_base (inv_sbut (j), module_type[j],
+                               module_graphic[j], module_help[j]);
+        mod_menu_build ();
+    }
+
+    module_page = 0;
+    selected_page = 0;
     selected_module = sbut[7];
     /* GCS: Move to later in initialization because I don't want to draw_main_window_box() yet */
 #if defined (commentout)
@@ -245,29 +370,36 @@ init_modules (void)
 void
 update_avail_modules (int popup)
 {
-    int i;
-    int f; /* remembers if a change is made to what is available, so we can
-	      draw if necessary */
+    int page;
+    int slot;
 
-    for (i = 0; i < NUMOF_MODULES; i++)
-    {
-	int g = inv_sbut(i);
-	f = module_tflag[i];
-	if (tech_level >= main_groups[g].tech * MAX_TECH_LEVEL/1000)
+    for (page = 0; page < mod_menu_page_count (); page++) {
+	int count = mod_menu_page_size (page);
+
+	for (slot = 0; slot < count; slot++)
 	{
-	    if (module_tflag[i] == 0)
-		if (popup)
-		    activate_module (i);
-	    f = 1;
-	}
-	else if (module_tflag[i] != 0 &&
-		 tech_level
-                 < ((main_groups[g].tech - (main_groups[g].tech/10)) * MAX_TECH_LEVEL/1000) )
-	    f = 0;
-	if (module_tflag[i] != f)
-	{
-	    module_tflag[i] = f;
-	    draw_module (i, module_graphic[i]);
+	    struct MOD_MENU_ENTRY *entry = mod_menu_entry (page, slot);
+	    int *flag = entry->base ? &module_tflag[slot] : &entry->available;
+	    int f = *flag;
+	    int g = entry->group;
+
+	    if (tech_level >= main_groups[g].tech * MAX_TECH_LEVEL/1000)
+	    {
+		if (*flag == 0)
+		    if (popup && entry->base)
+			activate_module (slot);
+		f = 1;
+	    }
+	    else if (*flag != 0 &&
+		     tech_level
+		     < ((main_groups[g].tech - (main_groups[g].tech/10)) * MAX_TECH_LEVEL/1000) )
+		f = 0;
+	    if (*flag != f)
+	    {
+		*flag = f;
+		if (page == module_page)
+		    draw_module (slot, entry->graphic);
+	    }
 	}
     }
     /* XXX: Why is this here? Should be with rest of tech gained messages! */
@@ -363,6 +495,7 @@ module_buttons_handler (int x, int y, int mbutton)
 {
     int module;
     int row, col;
+    int count = mod_menu_page_size (module_page);
 
 
     /* Figure out which row and column the click came in */
@@ -375,6 +508,8 @@ module_buttons_handler (int x, int y, int mbutton)
       return;
     
     module = row + (module_rows * col);
+    if (module < 0 || module >= count)
+	return;
 
     select_module (module, mbutton);
 }
@@ -386,33 +521,53 @@ module_buttons_handler (int x, int y, int mbutton)
 void
 select_module (int module, int mbutton)
 {
-    if (module_tflag[module] == 0 && mbutton != LC_MOUSE_RIGHTBUTTON) {
+    struct MOD_MENU_ENTRY *entry = current_entry (module);
+    char help_name[MOD_MENU_HELP_LEN + 1];
+
+    if (entry == NULL)
+	return;
+    if (!entry_available (entry, module) && mbutton != LC_MOUSE_RIGHTBUTTON) {
 	ok_dial_box ("not_enough_tech.mes", BAD, 0L);
 	return;
     }
-    if (mbutton == LC_MOUSE_RIGHTBUTTON 
-	|| (module_help_flag[module] == 0 
-	    && !suppress_firsttime_module_help))
-    {
-	activate_help (module_help[module]);
-	if (mbutton != LC_MOUSE_RIGHTBUTTON) {
-	    module_help_flag[module] = 1;
-	    pending_module = module;
-	    /* Deselect current module while help is shown */
-	    unhighlight_module_button (selected_module);
-	    selected_module = 0;
-	    set_selected_module (CST_GREEN);
-	    return;
-	}
-	if (mbutton == LC_MOUSE_RIGHTBUTTON)
-	    return;
+
+    entry_help_name (entry, help_name, sizeof help_name);
+
+    if (mbutton == LC_MOUSE_RIGHTBUTTON) {
+	if (help_name[0] != '\0')
+	    activate_help (help_name);
+	return;
     }
 
-    unhighlight_module_button (selected_module);
-    highlight_module_button (module);
-    selected_module = module;
+    if (help_name[0] != '\0'
+	&& !entry_help_seen (entry, module)
+	&& !suppress_firsttime_module_help)
+    {
+	activate_help (help_name);
+	set_entry_help_seen (entry, module);
+	pending_module = module;
+	pending_page = module_page;
+	/* Deselect current module while help is shown */
+	unhighlight_selected ();
+	selected_page = -1;
+	selected_module = -1;
+	set_selected_module (CST_GREEN);
+	return;
+    }
 
-    set_selected_module (module_type[module]);
+    /* Mod groups with more than one type open a chooser.  Base groups keep
+       their original default-type behaviour. */
+    if (!entry->base && mod_group_type_count (entry->group) > 1) {
+	open_type_chooser (entry->group, 0);
+	return;
+    }
+
+    unhighlight_selected ();
+    selected_page = module_page;
+    selected_module = module;
+    highlight_module_button (module);
+
+    set_selected_module (entry->type);
 }
 
 
@@ -424,13 +579,12 @@ highlight_module_button (int module)
     int x, y;
     int row, col;
 
-    if (module == 0) {
-	row = 0;
-	col = 0;
-    } else {
-	row = module % module_rows;
-	col = module / module_rows;
-    }
+    if (selected_page != module_page || module < 0
+        || module >= mod_menu_page_size (module_page))
+        return;
+
+    row = module % module_rows;
+    col = module / module_rows;
 
     x = 8 + (col * 24) + mbw->x;
     y = 8 + (row * 24) + mbw->y;
@@ -452,13 +606,11 @@ unhighlight_module_button (int module)
 
     int row, col;
 
-    if (module == 0) {
-	row = 0;
-	col = 0;
-    } else {
-	row = module % module_rows;
-	col = module / module_rows;
-    }
+    if (module < 0 || module >= mod_menu_page_size (module_page))
+        return;
+
+    row = module % module_rows;
+    col = module / module_rows;
 
     x = 8 + (col * 24) + mbw->x;
     y = 8 + (row * 24) + mbw->y;
@@ -504,13 +656,20 @@ void
 draw_modules (void)
 {
     int i;
+    int count = mod_menu_page_size (module_page);
+
     Fgl_fillbox (mbw->x, mbw->y, mbw->w, mbw->h, white (20));
 
-    for (i = 0; i < NUMOF_MODULES; i++) 
-      draw_module (sbut[i], module_graphic[sbut[i]]);
+    for (i = 0; i < count; i++) {
+        struct MOD_MENU_ENTRY *entry = mod_menu_entry (module_page, i);
 
-    highlight_module_button(selected_module);
+        if (entry != NULL)
+            draw_module (i, entry->graphic);
+    }
 
+    draw_page_indicator ();
+    if (selected_page == module_page)
+        highlight_module_button (selected_module);
 }
 
 void
@@ -518,25 +677,25 @@ draw_module (int module, char *graphic)
 {
     int x, y, xx, yy;
     int row, col;
-    
-    if (module == 0) {
-	row = 0;
-	col = 0;
-    } else {
-	row = module % module_rows;
-	col = module / module_rows;
-    }
+    struct MOD_MENU_ENTRY *entry = current_entry (module);
+
+    if (entry == NULL)
+        return;
+
+    row = module % module_rows;
+    col = module / module_rows;
 
     x = 8 + (col * 24);
     y = 8 + (row * 24);
 
     hide_mouse ();
 
-    Fgl_putbox (x + mbw->x, y + mbw->y, 16, 16, graphic);
+    if (graphic != NULL)
+        Fgl_putbox (x + mbw->x, y + mbw->y, 16, 16, graphic);
     unhighlight_module_button (module);
 
     /* Modules we don't have enough tech for are greyed out. */
-    if (module_tflag[module] == 0)
+    if (!entry_available (entry, module))
     {
 	for (yy = -3; yy < 19; yy++)
 	    for (xx = -3; xx < 19; xx += 2)
@@ -575,9 +734,189 @@ check_pending_module (void)
 {
     if (pending_module >= 0 && !help_flag) {
 	int m = pending_module;
+	int p = pending_page;
 	pending_module = -1;
+	pending_page = -1;
+	if (p >= 0 && p < mod_menu_page_count ())
+	    module_page = p;
 	select_module (m, LC_MOUSE_LEFTBUTTON);
     }
+}
+
+/* Change the visible build-menu page.  Page 0 stays the base page. */
+void
+module_change_page (int delta)
+{
+    int count = mod_menu_page_count ();
+
+    if (count <= 1 || delta == 0)
+        return;
+    module_page += delta;
+    while (module_page < 0)
+        module_page += count;
+    module_page %= count;
+    draw_modules ();
+}
+
+/* Switch to the page holding group and select its button. */
+void
+module_select_group (int group)
+{
+    int page;
+    int slot;
+
+    if (!mod_menu_find_group (group, &page, &slot))
+        return;
+    module_page = page;
+    selected_page = page;
+    selected_module = slot;
+    draw_modules ();
+}
+
+static void
+chooser_name (int group, char *name, size_t size)
+{
+    snprintf (name, size, "mp%d.tmp", group);
+}
+
+static void
+write_type_chooser (int group, int page)
+{
+    char path[LC_PATH_MAX];
+    char name[24];
+    FILE *fp;
+    int first = page * MOD_CHOOSER_PER_PAGE;
+    int i;
+
+    chooser_name (group, name, sizeof name);
+    snprintf (path, sizeof path, "%s%c%s", lc_save_dir, PATH_SLASH, name);
+    fp = fopen (path, "w");
+    if (fp == NULL) {
+        do_error ("Can't write mod type chooser");
+        return;
+    }
+
+    fprintf (fp, "text -1 12 Choose a type for %s\n",
+             _(main_groups[group].name));
+    fprintf (fp, "text -1 28 =====================================\n");
+
+    for (i = 0; i < MOD_CHOOSER_PER_PAGE; i++) {
+        int type = mod_group_type_at (group, first + i);
+        char label[TYPE_NAME_LEN + 1];
+        char tile[16];
+        int col;
+        int row;
+        int x;
+        int y;
+
+        if (type < 0)
+            break;
+        col = i % MOD_CHOOSER_COLUMNS;
+        row = i / MOD_CHOOSER_COLUMNS;
+        x = 24 + col * 140;
+        y = 50 + row * 38;
+        snprintf (tile, sizeof tile, "mptile%d", i);
+        if (main_types[type].graphic != NULL) {
+            help_register_tile (tile, main_types[type].graphic);
+            fprintf (fp, "icon %d %d %s\n", x, y, tile);
+        }
+        fprintf (fp, "button %d %d 18 18 return%d\n", x, y, i + 1);
+        get_type_name ((short) type, label);
+        label[15] = '\0';
+        fprintf (fp, "tbutton %d %d return%d %s\n", x + 22, y + 3,
+                 i + 1, label);
+    }
+
+    if (chooser_pages > 1) {
+        if (page > 0)
+            fprintf (fp, "tbutton 8 368 return98 < Prev\n");
+        fprintf (fp, "text 170 370 Page %d/%d\n", page + 1, chooser_pages);
+        if (page + 1 < chooser_pages)
+            fprintf (fp, "tbutton 390 368 return99 Next >\n");
+    }
+
+    fclose (fp);
+}
+
+static void
+open_type_chooser (int group, int page)
+{
+    char name[24];
+    int count = mod_group_type_count (group);
+
+    if (count <= 0)
+        return;
+    if (count == 1) {
+        module_choose_type (group, 0);
+        return;
+    }
+    chooser_group = group;
+    chooser_pages = (count + MOD_CHOOSER_PER_PAGE - 1)
+        / MOD_CHOOSER_PER_PAGE;
+    if (page < 0)
+        page = 0;
+    if (page >= chooser_pages)
+        page = chooser_pages - 1;
+    chooser_page = page;
+    write_type_chooser (group, page);
+    chooser_name (group, name, sizeof name);
+    block_help_exit = 1;
+    activate_help (name);
+}
+
+/* Called by lchelp.c when a chooser page returns.  Returns 0 when the page
+   is not ours, 1 when help should close, and 2 when the page was rewritten
+   and should be drawn again. */
+int
+module_chooser_page_result (const char *page, int value)
+{
+    int i;
+    int parsed = 0;
+    int next;
+
+    if (page == NULL || strncmp (page, "mp", 2) != 0)
+        return 0;
+    for (i = 2; page[i] >= '0' && page[i] <= '9'; i++)
+        parsed = parsed * 10 + (page[i] - '0');
+    if (i == 2 || strcmp (page + i, ".tmp") != 0)
+        return 0;
+    if (chooser_group < 0 || parsed != chooser_group)
+        return 1;
+
+    if (value >= 1 && value <= MOD_CHOOSER_PER_PAGE) {
+        int index = chooser_page * MOD_CHOOSER_PER_PAGE + value - 1;
+
+        if (index < mod_group_type_count (chooser_group))
+            module_choose_type (chooser_group, index);
+        return 1;
+    }
+    if (value == 98 || value == 99) {
+        next = chooser_page + (value == 99 ? 1 : -1);
+        if (next < 0 || next >= chooser_pages)
+            return 1;
+        chooser_page = next;
+        write_type_chooser (chooser_group, chooser_page);
+        return 2;
+    }
+    return 1;
+}
+
+static void
+module_choose_type (int group, int index)
+{
+    int type = mod_group_type_at (group, index);
+    int page;
+    int slot;
+
+    if (type < 0)
+        return;
+    if (mod_menu_find_group (group, &page, &slot)) {
+        module_page = page;
+        selected_page = page;
+        selected_module = slot;
+    }
+    set_selected_module (type);
+    draw_modules ();
 }
 
 void

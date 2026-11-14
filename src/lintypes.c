@@ -1681,7 +1681,16 @@ void
 get_type_name (short type, char * s) 
 {
      short g;
+     if (type >= 0 && type < num_types
+         && main_types[type].name[0] != '\0') {
+         strcpy (s, main_types[type].name);
+         return;
+     }
      g = get_group_of_type (type);
+     if (g < 0 || g >= num_groups) {
+         s[0] = '\0';
+         return;
+     }
      strcpy (s, _(main_groups[g].name));
 }
 

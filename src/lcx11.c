@@ -758,6 +758,12 @@ HandleEvent (XEvent * event)
 	    case XK_Right:
 		x_key_value = 4;
 		break;
+	    case XK_Page_Up:
+		x_key_value = 6;
+		break;
+	    case XK_Page_Down:
+		x_key_value = 7;
+		break;
 #if defined (commentout)
 		/* GCS:  What the hell is this??? */
 	    case 'C':

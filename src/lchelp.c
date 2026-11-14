@@ -19,6 +19,70 @@
 #include "module_buttons.h"
 #include "screen.h"
 
+#define MAX_HELP_TILES 24
+static struct
+{
+    char name[16];
+    char *tile;
+} help_tiles[MAX_HELP_TILES];
+
+void
+help_register_tile (const char *name, char *tile)
+{
+    int i;
+    int free_slot = -1;
+
+    if (name == NULL || name[0] == '\0')
+        return;
+    for (i = 0; i < MAX_HELP_TILES; i++) {
+        if (help_tiles[i].name[0] != '\0'
+            && strcmp (help_tiles[i].name, name) == 0) {
+            help_tiles[i].tile = tile;
+            return;
+        }
+        if (free_slot < 0 && help_tiles[i].name[0] == '\0')
+            free_slot = i;
+    }
+    if (free_slot >= 0) {
+        snprintf (help_tiles[free_slot].name,
+                  sizeof help_tiles[free_slot].name, "%s", name);
+        help_tiles[free_slot].tile = tile;
+    }
+}
+
+static char *
+help_tile_lookup (const char *name)
+{
+    int i;
+
+    for (i = 0; i < MAX_HELP_TILES; i++) {
+        if (help_tiles[i].name[0] != '\0'
+            && strcmp (help_tiles[i].name, name) == 0)
+            return help_tiles[i].tile;
+    }
+    return NULL;
+}
+
+/* mod<group>.hlp is the runtime-only alias for a mod's validated help path.
+   Keeping the alias short leaves room in the 40-char help history. */
+static const char *
+mod_help_path (const char *name)
+{
+    int group = 0;
+    int i;
+
+    if (name == NULL || strncmp (name, "mod", 3) != 0)
+        return NULL;
+    for (i = 3; name[i] >= '0' && name[i] <= '9'; i++)
+        group = group * 10 + (name[i] - '0');
+    if (i == 3 || strcmp (name + i, ".hlp") != 0)
+        return NULL;
+    if (group < 0 || group >= num_groups
+        || main_groups[group].help[0] == '\0')
+        return NULL;
+    return main_groups[group].help;
+}
+
 /* About help history:
    History count starts at 0, but is immediately incremented to 1.
    Current page is stored at help_button_history[help_history_count-1],
@@ -66,6 +130,7 @@ draw_help_page (char *helppage)
     Rect* mw = &scr.main_win;
     char *helppage_full, *helppage_short;
     int i, y;
+    int chooser_result;
     FILE *inf;
     char help_line[MAX_HELP_LINE];
 
@@ -91,6 +156,21 @@ draw_help_page (char *helppage)
 	    help_history_count -= 2;
 	    goto continue_with_help;
 	}
+
+	/* Mod type chooser pages return here.  A rewritten page is re-drawn
+	   in place; any other chooser result closes the help system. */
+	chooser_result = (help_history_count > 0)
+	    ? module_chooser_page_result (
+		  help_button_history[help_history_count - 1],
+		  help_return_val)
+	    : 0;
+	if (chooser_result == 2) {
+	    help_history_count--;
+	    strcpy (helppage, help_button_history[help_history_count]);
+	    goto continue_with_help;
+	}
+	if (chooser_result == 1)
+	    goto close_help;
 
 	/* XXX: WCK: residential selection is really ugly */
 	if (help_history_count > 0 &&
@@ -281,6 +361,7 @@ draw_help_page (char *helppage)
 	}
 #endif
 
+ close_help:
 	block_help_exit = 0;
 	help_flag = 0;
 
@@ -323,19 +404,32 @@ draw_help_page (char *helppage)
 	    malloc_failure ();
 	}
 
+	/* A mod help alias resolves directly to its validated path. */
+	inf = NULL;
+	{
+	    const char *mod_path = mod_help_path (helppage);
+
+	    if (mod_path != NULL)
+		inf = fopen (mod_path, "r");
+	}
+
 	/* Open the file */
-	snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
-		  + strlen(helppage) + 2, "%s%s", help_path, helppage);
-	if ((inf = fopen (helppage_full, "r")) == 0) {
+	if (inf == NULL) {
+	    snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
+		      + strlen(helppage) + 2, "%s%s", help_path, helppage);
+	    inf = fopen (helppage_full, "r");
+	}
+	if (inf == NULL) {
 	    snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
 		      + strlen(helppage) + 2, "%s%c%s", lc_save_dir,
 		     PATH_SLASH, helppage);
-	    if ((inf = fopen (helppage_full, "r")) == 0) {
-		snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
-			  + strlen(helppage) + 2, "%s%s", help_path, HELPERRORPAGE);
-		if ((inf = fopen (helppage_full, "r")) == 0)
-		    do_error ("Help error");
-	    }
+	    inf = fopen (helppage_full, "r");
+	}
+	if (inf == NULL) {
+	    snprintf (helppage_full, lc_save_dir_len + strlen (help_path)
+		      + strlen(helppage) + 2, "%s%s", help_path, HELPERRORPAGE);
+	    if ((inf = fopen (helppage_full, "r")) == 0)
+		do_error ("Help error");
 	}
 
 	/* Parse and render help file */
@@ -503,6 +597,15 @@ draw_help_icon (int x, int y, char *icon)
     int i, l, w, h;
     char ss[LC_PATH_MAX];
     FILE *inf;
+    char *tile = help_tile_lookup (icon);
+
+    if (tile != NULL) {
+        x = x + (mw->w - 440) / 2;
+        if (x > 0 && y > 0 && ((x + 16) < mw->w) && ((y + 16) < mw->h))
+            Fgl_putbox (mw->x + x, mw->y + y, 16, 16, tile);
+        return;
+    }
+
     snprintf (ss, sizeof(ss), "%s%s", graphic_path, icon);
     if ((inf = fopen (ss, "rb")) == NULL) {
 	return;

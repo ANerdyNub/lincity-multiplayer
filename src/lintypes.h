@@ -18,6 +18,9 @@
 #define NUM_OF_TYPES    400
 #define NUM_OF_GROUPS    42
 #define GROUP_NAME_LEN   20
+#define GROUP_CATEGORY_LEN 32
+#define GROUP_HELP_PATH_LEN 1024
+#define TYPE_NAME_LEN    64
 #define MOD_KEY_LEN      160
 #define MOD_OWNER_LEN    64
 
@@ -48,12 +51,21 @@ struct GROUP
     void (*update_tech)(int x, int y);
     char key[MOD_KEY_LEN + 1];
     char owner[MOD_OWNER_LEN + 1];
+
+    /* Build-menu metadata.  Page 0 supplies its own choices and ignores
+       these fields; mod pages read them through mod_menu.c. */
+    char category[GROUP_CATEGORY_LEN + 1];
+    int menu_order;
+    int default_type;
+    char *button;                  /* 16x16 palette tile, or NULL */
+    char help[GROUP_HELP_PATH_LEN + 1];
 };
 
 struct TYPE
 {
     int group;          /* What group does this type belong to? -1 if unset */
     char* graphic;      /* Bitmap of the graphic */
+    char name[TYPE_NAME_LEN + 1];
     char key[MOD_KEY_LEN + 1];
     char owner[MOD_OWNER_LEN + 1];
 };

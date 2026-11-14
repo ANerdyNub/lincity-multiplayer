@@ -618,6 +618,14 @@ LRESULT CALLBACK WndProc (HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case VK_ESCAPE:
 	    x_key_value = 5;
 	    break;
+
+	case VK_PRIOR:
+	    x_key_value = 6;
+	    break;
+
+	case VK_NEXT:
+	    x_key_value = 7;
+	    break;
 	}
     }
     break;
