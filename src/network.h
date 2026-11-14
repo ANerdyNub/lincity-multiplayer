@@ -18,7 +18,7 @@
 #define DEFAULT_SOCK_HOST "localhost"
 #define DEFAULT_SOCK_PORT 5123
 #define NETWORK_PORT 5123
-#define NETWORK_VERSION 2
+#define NETWORK_VERSION 3
 #define NETWORK_BUF_SIZE 4096
 /* The current map is 480000 bytes; 1 MiB leaves room for future growth. */
 #define NETWORK_MAX_MAP_BYTES (1024u * 1024u)

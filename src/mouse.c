@@ -17,6 +17,7 @@
 #include "engine.h"
 #include "screen.h"
 #include "mps.h"
+#include "mod_registry.h"
 #include "fileutil.h"
 #include "lchelp.h"
 #include "pbar.h"
@@ -530,12 +531,14 @@ do_mouse_main_win (int px, int py, int button)
 	mps_result = mps_set(mod_x, mod_y, MPS_MAP);
 
 	if (mps_result >= 1) {
-	    if (MP_GROUP(mod_x,mod_y) == GROUP_MARKET)
+	    if (mod_group_has_trait (MP_GROUP(mod_x,mod_y),
+				      GROUP_TRAIT_MARKET))
 	    {
 		clicked_market_cb (mod_x, mod_y);
 		return;
 	    }
-	    else if (MP_GROUP(mod_x,mod_y) == GROUP_PORT)
+	    else if (mod_group_has_trait (MP_GROUP(mod_x,mod_y),
+					   GROUP_TRAIT_PORT))
 	    {
 		clicked_port_cb (mod_x, mod_y);
 		return;

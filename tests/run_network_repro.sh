@@ -24,7 +24,8 @@ REQUIRE_LOG="any"
 REQUIRE_LINE=
 ORIGIN=
 SEED=
-HELLO_VERSION=2
+NETWORK_VERSION=3
+HELLO_VERSION=3
 EXPECT_HELLO_REJECTED=0
 NO_HELLO=0
 SLOWLINE=0
@@ -285,7 +286,7 @@ if [ "$EXPECT_HELLO_REJECTED" = 1 ]; then
         cat "$TMP/host.log" >&2 || true
         exit 1
     fi
-    if ! grep -Fq "network: rejected client protocol version $HELLO_VERSION (expected 2)" "$TMP/host.log"; then
+    if ! grep -Fq "network: rejected client protocol version $HELLO_VERSION (expected $NETWORK_VERSION)" "$TMP/host.log"; then
         echo "FAIL: host did not reject protocol version $HELLO_VERSION" >&2
         cat "$TMP/client.log" >&2 || true
         cat "$TMP/host.log" >&2 || true

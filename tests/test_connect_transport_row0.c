@@ -9,8 +9,11 @@
 #include "engglobs.h"
 #include "lctypes.h"
 #include "lin-city.h"
+#include "mod_registry.h"
 
 Map map;
+struct GROUP main_groups[NUM_OF_GROUPS];
+int num_groups = NUM_OF_GROUPS;
 
 /* Only the water branch of connect_transport() uses this; the test exercises
    track cells, so a harmless stub keeps the translation unit linkable. */
@@ -62,6 +65,17 @@ main (void)
     CHECK (MP_INFO (0, 0).flags & FLAG_DOWN);
     CHECK (MP_TYPE (0, 1) == CST_TRACK_UD);
     CHECK (MP_INFO (0, 1).flags & FLAG_UP);
+
+    /* A mod power source is recognized by trait, not by a base group ID. */
+    memset (&map, 0, sizeof map);
+    main_groups[42].traits = GROUP_TRAIT_POWER_GRID;
+    MP_TYPE (0, 0) = CST_POWERL_H_L;
+    MP_GROUP (0, 0) = GROUP_POWER_LINE;
+    MP_TYPE (1, 0) = 500;
+    MP_GROUP (1, 0) = 42;
+    connect_transport (0, 0, 2, 1);
+    CHECK (MP_TYPE (0, 0) == CST_POWERL_H_D);
+    CHECK (MP_TYPE (1, 0) == 500);
 
     if (failures != 0) {
         fprintf (stderr, "%d row/column-0 transport test(s) failed\n",

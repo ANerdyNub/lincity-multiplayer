@@ -13,6 +13,7 @@
 #include "engglobs.h"
 #include "pbar.h"
 #include "stats.h"
+#include "mod_registry.h"
 
 /* ---------------------------------------------------------------------- *
  * Public Global Variables
@@ -166,20 +167,12 @@ init_lastyear(void)
 void
 inventory(int x, int y)
 {
+    int group = get_group_of_type (MP_TYPE(x,y));
 
-    switch(get_group_of_type(MP_TYPE(x,y))) {
-
-    case GROUP_MARKET: 
-	inventory_market(x, y); 
-	break;
-    
-    default: {
-	printf("Default in inventory(%d,%d): got %d\n", 
-	    x, y, get_group_of_type(MP_TYPE(x,y)));
-	break;
-    }
-
-    }
+    if (mod_group_has_trait (group, GROUP_TRAIT_MARKET))
+	inventory_market (x, y);
+    else
+	printf ("Default in inventory(%d,%d): got %d\n", x, y, group);
 }
 
 void

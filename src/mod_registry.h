@@ -98,6 +98,7 @@ struct MOD_BEHAVIOR
     void (*simulate)(int x, int y);
     void (*mps)(int x, int y);
     void (*update_tech)(int x, int y);
+    int mod_safe;       /* 1 only when a data mod may name this behavior. */
 };
 
 const struct MOD_BEHAVIOR *mod_builtin_behavior_lookup (const char *name);

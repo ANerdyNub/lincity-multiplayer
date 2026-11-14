@@ -447,8 +447,9 @@ do_market (int x, int y)
   if (MP_INFO(x,y).int_4 > MAX_GOODS_IN_MARKET)
     MP_INFO(x,y).int_4 = MAX_GOODS_IN_MARKET;
 
-  /* now choose a graphic only dependent on food (for now anyway) */
-  if (total_time % 25 == 17)
+  /* now choose a graphic only dependent on food (for now anyway).  A mod
+     market keeps its own type instead of taking a base market graphic. */
+  if (MP_GROUP(x,y) == GROUP_MARKET && total_time % 25 == 17)
     {
       if (MP_INFO(x,y).int_1 <= 0)
 	{

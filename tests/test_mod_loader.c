@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "lctypes.h"
@@ -43,7 +44,11 @@ static int checks;
     } while (0)
 
 static const struct MOD_BEHAVIOR park_behavior = {
-    "parkland", 0, NULL, NULL, NULL
+    "parkland", 0, NULL, NULL, NULL, 1
+};
+
+static const struct MOD_BEHAVIOR unsafe_behavior = {
+    "residence", 0, NULL, NULL, NULL, 0
 };
 
 static const struct MOD_BEHAVIOR *
@@ -51,6 +56,8 @@ test_lookup (const char *name)
 {
     if (name != NULL && strcmp (name, "parkland") == 0)
         return &park_behavior;
+    if (name != NULL && strcmp (name, "residence") == 0)
+        return &unsafe_behavior;
     return NULL;
 }
 
@@ -216,6 +223,16 @@ test_bad_behavior (void)
 }
 
 static void
+test_unsafe_behavior (void)
+{
+    reset_registry ();
+    CHECK (expect_failure ("tests/fixtures/mods/unsafe_behavior",
+                           "not safe for mods"));
+    CHECK (num_groups == 1);
+    CHECK (num_types == 1);
+}
+
+static void
 test_missing_graphic (void)
 {
     reset_registry ();
@@ -334,6 +351,76 @@ test_ini_errors (void)
 }
 
 static void
+write_temp_file (const char *path, const char *text)
+{
+    FILE *fp = fopen (path, "w");
+
+    CHECK (fp != NULL);
+    if (fp != NULL) {
+        fputs (text, fp);
+        fclose (fp);
+    }
+}
+
+static void
+make_id_mod (const char *root, const char *id, int type_id)
+{
+    char dir[2048];
+    char path[4096];
+    char ini[4096];
+
+    snprintf (dir, sizeof dir, "%s/%s", root, id);
+    CHECK (mkdir (dir, 0700) == 0);
+    snprintf (path, sizeof path, "%s/mod.ini", dir);
+    if (type_id != 0)
+        snprintf (ini, sizeof ini,
+                  "[mod]\nid = %s\nname = %s\nversion = 1.0.0\napi = 1\n\n"
+                  "[group:park]\nname = %s Park\nbehavior = parkland\n"
+                  "size = 1\ntype = %d\ngraphic = park.png\n",
+                  id, id, id, type_id);
+    else
+        snprintf (ini, sizeof ini,
+                  "[mod]\nid = %s\nname = %s\nversion = 1.0.0\napi = 1\n\n"
+                  "[group:park]\nname = %s Park\nbehavior = parkland\n"
+                  "size = 1\ngraphic = park.png\n",
+                  id, id, id);
+    write_temp_file (path, ini);
+    snprintf (path, sizeof path, "%s/park.png", dir);
+    write_temp_file (path, "png");
+}
+
+static void
+test_id_reservation (void)
+{
+    char root[] = "/tmp/lc-mod-ids-XXXXXX";
+    char conf[512];
+    char err[512];
+
+    CHECK (mkdtemp (root) != NULL);
+    make_id_mod (root, "auto_mod", 0);
+    make_id_mod (root, "explicit_mod", 400);
+    snprintf (conf, sizeof conf, "%s/mods.conf", root);
+
+    write_temp_file (conf, "auto_mod = 1\nexplicit_mod = 1\n");
+    reset_registry ();
+    mod_loader_init ();
+    CHECK (mod_loader_load (root, conf, test_lookup, test_graphic,
+                            err, sizeof err));
+    CHECK (mod_find_type_by_key ("auto_mod.park") == 401);
+    CHECK (mod_find_type_by_key ("explicit_mod.park") == 400);
+    mod_loader_shutdown ();
+
+    write_temp_file (conf, "explicit_mod = 1\nauto_mod = 1\n");
+    reset_registry ();
+    mod_loader_init ();
+    CHECK (mod_loader_load (root, conf, test_lookup, test_graphic,
+                            err, sizeof err));
+    CHECK (mod_find_type_by_key ("explicit_mod.park") == 400);
+    CHECK (mod_find_type_by_key ("auto_mod.park") == 401);
+    mod_loader_shutdown ();
+}
+
+static void
 test_config_disable (void)
 {
     char dir[] = "/tmp/lc-mod-conf-XXXXXX";
@@ -369,12 +456,14 @@ main (void)
     test_duplicate_id ();
     test_duplicate_type_id ();
     test_bad_behavior ();
+    test_unsafe_behavior ();
     test_missing_graphic ();
     test_path_traversal ();
     test_rollback ();
     test_synthetic_map ();
     test_ini_errors ();
     test_config_disable ();
+    test_id_reservation ();
 
     if (failures != 0) {
         fprintf (stderr, "%d/%d checks failed\n", failures, checks);

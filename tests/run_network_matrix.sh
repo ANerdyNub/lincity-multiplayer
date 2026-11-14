@@ -228,6 +228,7 @@ run_client client-edges \
     --payload '66 10 10 999999999999999999999' \
     --require-log reject --expect-rejects 15
 run_client bad-map --bad-map
+run_client mod-mismatch --mod-mismatch
 run_client partial-line --partial --payload '66 1 1 71'
 run_client valid-map --payload '66 2 2 71'
 

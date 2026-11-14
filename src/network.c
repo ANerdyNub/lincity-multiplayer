@@ -17,9 +17,11 @@
 #include "engglobs.h"
 #include "cliglobs.h"
 #include "mapwire.h"
+#include "mod_loader.h"
 #include "network.h"
 #include "stats.h"
 #include "validation.h"
+#include "save_mods.h"
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -896,8 +898,32 @@ parse_action_values(const char *line, int values[4])
     return nvalues;
 }
 
+static int
+network_host_send_mods(int client_fd)
+{
+    char *header = save_mod_header_format ();
+    int len;
+
+    if (header == NULL) {
+        fprintf(stderr, "network: could not format the host mod list\n");
+        fflush(stderr);
+        return -1;
+    }
+    len = (int) strlen (header);
+    if (network_send_raw (client_fd, header, len) < 0) {
+        fprintf(stderr, "network: failed to send the host mod list\n");
+        fflush(stderr);
+        free (header);
+        return -1;
+    }
+    free (header);
+    return 0;
+}
+
 /* Read exactly one hello line before the host sends any map bytes.  A bad
-   or mismatched version gets an explicit disconnect line and a close. */
+   or mismatched version gets an explicit disconnect line and a close.  A
+   valid hello is followed by the save-format mod block, which the client
+   checks before accepting the map. */
 int
 network_host_verify_hello(int client_fd)
 {
@@ -912,6 +938,10 @@ network_host_verify_hello(int client_fd)
     }
     if (parse_action_values(buf, values) == 2 && values[0] == MSG_HELLO) {
         if (values[1] == NETWORK_VERSION) {
+            if (network_host_send_mods (client_fd) < 0) {
+                network_send_text (client_fd, "%d\n", MSG_DISCONN);
+                return -1;
+            }
             fprintf(stderr, "network: client protocol version %d accepted\n",
                     NETWORK_VERSION);
             fflush(stderr);
@@ -1080,6 +1110,64 @@ network_host_send_info_all(void)
 /* ---------------------------------------------------------------------- *
  * Client implementation
  * ---------------------------------------------------------------------- */
+static int
+network_client_recv_mods(int fd)
+{
+    char line[NETWORK_BUF_SIZE];
+    char err[512];
+    FILE *tmp;
+    int lines = 0;
+
+    tmp = tmpfile ();
+    if (tmp == NULL) {
+        fprintf(stderr, "network: cannot create a temporary mod-list file\n");
+        fflush(stderr);
+        return -1;
+    }
+    for (;;) {
+        int n = network_recv_line (fd, line, sizeof line);
+
+        if (n <= 0) {
+            fprintf(stderr, "network: host mod list is truncated\n");
+            fflush(stderr);
+            fclose (tmp);
+            return -1;
+        }
+        if (fputs (line, tmp) == EOF || fputc ('\n', tmp) == EOF) {
+            fprintf(stderr, "network: cannot buffer the host mod list\n");
+            fflush(stderr);
+            fclose (tmp);
+            return -1;
+        }
+        lines++;
+        if (strcmp (line, "end") == 0)
+            break;
+        if (lines > MAX_TYPES + MOD_LIST_MAX + 8) {
+            fprintf(stderr, "network: host mod list is too large\n");
+            fflush(stderr);
+            fclose (tmp);
+            return -1;
+        }
+    }
+    rewind (tmp);
+    err[0] = '\0';
+    if (!save_mod_header_read (tmp, err, sizeof err)) {
+        fprintf(stderr, "network: rejected host mod list: %s\n", err);
+        fflush(stderr);
+        fclose (tmp);
+        return -1;
+    }
+    err[0] = '\0';
+    if (!save_mod_header_verify_exact (err, sizeof err)) {
+        fprintf(stderr, "network: rejected host mod list: %s\n", err);
+        fflush(stderr);
+        fclose (tmp);
+        return -1;
+    }
+    fclose (tmp);
+    return 0;
+}
+
 int
 network_client_connect(const char *host, int port)
 {
@@ -1122,6 +1210,15 @@ network_client_connect(const char *host, int port)
     if (network_send_text(fd, "%d %d\n", MSG_HELLO, NETWORK_VERSION) < 0) {
         fprintf(stderr, "network: client hello send failed\n");
         fflush(stderr);
+        CLOSE_SOCK(fd);
+        network_wsaclean();
+        return -1;
+    }
+
+    /* The host sends the save-format mod block before WELCOME.  Refuse a
+       missing, incompatible, or differently ordered mod set before reading
+       any map bytes. */
+    if (network_client_recv_mods (fd) < 0) {
         CLOSE_SOCK(fd);
         network_wsaclean();
         return -1;

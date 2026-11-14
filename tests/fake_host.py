@@ -12,7 +12,7 @@ import sys
 import time
 import zlib
 
-NETWORK_VERSION = 2
+NETWORK_VERSION = 3
 MSG_HELLO = 72
 MSG_WELCOME = 87
 
@@ -44,6 +44,8 @@ def main():
                     help="protocol version advertised in MSG_WELCOME")
     ap.add_argument("--no-map", action="store_true",
                     help="send only the welcome line and keep the socket open")
+    ap.add_argument("--mod-mismatch", action="store_true",
+                    help="send a host mod list the client must reject")
     args = ap.parse_args()
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -61,6 +63,15 @@ def main():
         hello_values = [int(p) for p in hello.split()]
         if hello_values != [MSG_HELLO, NETWORK_VERSION]:
             raise SystemExit("unexpected hello: %r" % hello)
+
+        if args.mod_mismatch:
+            conn.sendall(b"#lcm 1\nmods 1\nmod fake_mod 1.0.0 1\n"
+                         b"types 0\nend\n")
+            print("mismatched mod header sent", flush=True)
+            time.sleep(args.wait)
+            return
+
+        conn.sendall(b"#lcm 1\nmods 0\ntypes 0\nend\n")
 
         # The wire protocol uses numeric message codes: MSG_WELCOME is 87.
         conn.sendall(("%d 100 %d\n"

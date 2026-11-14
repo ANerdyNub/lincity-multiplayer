@@ -18,7 +18,7 @@ MSG_MFLAGS = 70
 MSG_HELLO = 72
 MSG_WELCOME = 87
 MSG_DISCONN = 88
-NETWORK_VERSION = 2
+NETWORK_VERSION = 3
 
 
 def recv_exact(sock, n):
@@ -36,6 +36,14 @@ def recv_line(sock):
     while not buf.endswith(b"\n"):
         buf += recv_exact(sock, 1)
     return buf
+
+
+def recv_mod_header(sock):
+    """Consume the host's save-format mod block before WELCOME."""
+    while True:
+        line = recv_line(sock)
+        if line.strip() == b"end":
+            return
 
 
 def parse_values(spec, count, label):
@@ -109,6 +117,7 @@ def main():
             print("PASS: host rejected the client hello before a map", flush=True)
             return
 
+        recv_mod_header(sock)
         welcome = recv_line(sock)
         print("welcome: %s" % welcome.decode("ascii", "replace").strip(), flush=True)
         welcome_values = [int(p) for p in welcome.split()]

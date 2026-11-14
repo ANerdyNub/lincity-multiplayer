@@ -27,11 +27,22 @@ struct TEXT_BUF
 static int loaded_type_present[MAX_TYPES];
 static int loaded_type_map[MAX_TYPES];
 
+/* Mod list parsed from the last successful header, for the exact-match
+   network check. */
+static char loaded_mod_ids[MOD_LIST_MAX][MOD_ID_MAX + 1];
+static char loaded_mod_versions[MOD_LIST_MAX][MOD_VERSION_MAX + 1];
+static int loaded_mod_apis[MOD_LIST_MAX];
+static int loaded_mod_count;
+
 void
 save_mod_header_reset (void)
 {
     memset (loaded_type_present, 0, sizeof loaded_type_present);
     memset (loaded_type_map, 0, sizeof loaded_type_map);
+    memset (loaded_mod_ids, 0, sizeof loaded_mod_ids);
+    memset (loaded_mod_versions, 0, sizeof loaded_mod_versions);
+    memset (loaded_mod_apis, 0, sizeof loaded_mod_apis);
+    loaded_mod_count = 0;
 }
 
 static int
@@ -303,6 +314,10 @@ save_mod_header_read (FILE *in, char *err, size_t err_size)
             }
         }
         snprintf (mod_ids[i], sizeof mod_ids[i], "%s", id);
+        snprintf (loaded_mod_ids[i], sizeof loaded_mod_ids[i], "%s", id);
+        snprintf (loaded_mod_versions[i], sizeof loaded_mod_versions[i],
+                  "%s", version);
+        loaded_mod_apis[i] = api;
 
         enabled = enabled_index (id);
         if (enabled < 0) {
@@ -325,6 +340,8 @@ save_mod_header_read (FILE *in, char *err, size_t err_size)
             return 0;
         }
     }
+
+    loaded_mod_count = count;
 
     if (read_line (in, line, sizeof line) != 1) {
         set_error (err, err_size, "save mod header is missing or truncated");
@@ -390,6 +407,40 @@ save_mod_header_read (FILE *in, char *err, size_t err_size)
     if (n != 1 || strcmp (tokens[0], "end") != 0) {
         set_error (err, err_size, "save mod header has no end marker");
         return 0;
+    }
+    return 1;
+}
+
+int
+save_mod_header_verify_exact (char *err, size_t err_size)
+{
+    size_t enabled_count = mod_loader_enabled_count ();
+    size_t i;
+
+    if (loaded_mod_count != (int) enabled_count) {
+        set_error (err, err_size,
+                   "host mod list has %d mods, but %d are enabled",
+                   loaded_mod_count, (int) enabled_count);
+        return 0;
+    }
+    for (i = 0; i < enabled_count; i++) {
+        const char *id = mod_loader_enabled_id (i);
+        const char *version = mod_loader_enabled_version (i);
+        int api = mod_loader_enabled_api (i);
+
+        if (id == NULL || version == NULL) {
+            set_error (err, err_size, "enabled mod list is incomplete");
+            return 0;
+        }
+        if (strcmp (loaded_mod_ids[i], id) != 0
+            || strcmp (loaded_mod_versions[i], version) != 0
+            || loaded_mod_apis[i] != api) {
+            set_error (err, err_size,
+                       "host mod %s@%s api %d does not match enabled mod %s@%s api %d",
+                       loaded_mod_ids[i], loaded_mod_versions[i],
+                       loaded_mod_apis[i], id, version, api);
+            return 0;
+        }
     }
     return 1;
 }

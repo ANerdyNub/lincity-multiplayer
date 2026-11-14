@@ -28,6 +28,10 @@
 void 
 do_power_substation (int x, int y) 
 {
+    /* A mod substation keeps its own type; the base graphic switch would
+       otherwise make it look like a base group. */
+    if (MP_GROUP(x,y) != GROUP_SUBSTATION)
+        return;
     switch(grid[MP_INFO(x,y).int_6]->powered) {
     case -1: {
 	MP_TYPE(x,y) = CST_SUBSTATION_R; 

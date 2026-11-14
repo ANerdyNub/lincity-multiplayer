@@ -30,6 +30,12 @@ def recv_line(sock):
     return buf
 
 
+def recv_mod_header(sock):
+    while True:
+        if recv_line(sock).strip() == b"end":
+            return
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
@@ -45,7 +51,8 @@ def main():
     sender_error = []
 
     try:
-        sock.sendall(b"72 2\n")
+        sock.sendall(b"72 3\n")
+        recv_mod_header(sock)
         print("welcome: %s" % recv_line(sock).decode("ascii", "replace").strip(),
               flush=True)
         hdr = recv_exact(sock, 8)
