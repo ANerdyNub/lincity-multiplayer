@@ -207,6 +207,18 @@ if [ -f "$ROOT/tests/test_power.c" ]; then
     "$ROOT/tests/test_power"
 fi
 
+# M5: bulldozing must use the same traits as placement, including mods.
+if [ -f "$ROOT/tests/test_bulldoze_traits.c" ]; then
+    "$CC" -DHAVE_CONFIG_H -I "$ROOT" -I "$ROOT/src" -I "$ROOT/src/modules" \
+        -Wall -Wextra -Werror \
+        -ffunction-sections -fdata-sections -Wl,--gc-sections \
+        -o "$ROOT/tests/test_bulldoze_traits" \
+        "$ROOT/tests/test_bulldoze_traits.c" "$ROOT/src/engine.c" \
+	"$ROOT/src/market.c" "$ROOT/src/modules/substation.c" \
+	"$ROOT/src/stats.c" -lz -lm
+    "$ROOT/tests/test_bulldoze_traits"
+fi
+
 # P16: removing the last market/substation must not read one past the array.
 if [ -f "$ROOT/tests/test_remove.c" ]; then
     "$CC" -DHAVE_CONFIG_H -I "$ROOT" -I "$ROOT/src" -I "$ROOT/src/modules" \

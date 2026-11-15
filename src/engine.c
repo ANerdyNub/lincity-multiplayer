@@ -626,7 +626,7 @@ do_fire_health_and_cricket_cover (void)
 
 	if (mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_FIRESTATION))
 	  do_fire_cover (x, y);
-	else if (MP_TYPE(x,y) == CST_HEALTH)
+	else if (mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_HEALTH))
 	  do_health_cover (x, y);
 	else if (mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_CRICKET))
 	  do_cricket_cover (x, y);
@@ -840,7 +840,7 @@ spiral_find_2x2 (int startx, int starty)
 void
 do_bulldoze_area (short fill, int xx, int yy)
 {
-  int size, x, y;
+  int size, x, y, group;
   if (MP_TYPE(xx,yy) == CST_USED)
     {
       x = MP_INFO(xx,yy).int_1;
@@ -852,14 +852,14 @@ do_bulldoze_area (short fill, int xx, int yy)
       y = yy;
     }
   size = MP_SIZE(x,y);
-  if (MP_GROUP(x,y) == GROUP_SUBSTATION
-      || MP_GROUP(x,y) == GROUP_WINDMILL)
+  group = MP_GROUP(x,y);
+  if (mod_group_has_trait (group, GROUP_TRAIT_POWER_ENTRY))
     remove_a_substation (x, y);
-  else if (MP_GROUP(x,y) == GROUP_MARKET)
+  else if (mod_group_has_trait (group, GROUP_TRAIT_MARKET))
     remove_a_market (x, y);
-  else if (MP_GROUP(x,y) == GROUP_SHANTY)
+  else if (mod_group_has_trait (group, GROUP_TRAIT_SHANTY))
     numof_shanties--;
-  else if (MP_GROUP(x,y) == GROUP_COMMUNE)
+  else if (mod_group_has_trait (group, GROUP_TRAIT_COMMUNE))
     numof_communes--;
 
   people_pool += MP_INFO(x,y).population;

@@ -537,73 +537,113 @@ static const struct GROUP base_groups[NUM_OF_GROUPS] =
     }
 };
 
+/* Mod-safety audit.  A behavior is listed as safe only when its simulation
+   works with a non-base type/group ID.  Base registration uses
+   mod_builtin_behavior_lookup() and still receives every entry; the mod
+   loader rejects mod_safe == 0 with an explicit error.
+
+   behavior        safe  reason
+   bare            yes   no simulation
+   power_line      no    connect_transport uses base graph tables
+   solar_power     yes   generic power-source fields
+   substation      yes   base type animation guarded; grid fields are generic
+   residence       no    capacities come from CST_RESIDENCE_* (TODO: data-driven)
+   track           no    connect_transport uses base group/tables
+   coalmine        no    checks GROUP_RAIL/ROAD/TRACK for access
+   rail            no    connect_transport uses base group/tables
+   coal_power      no    do_power_source_coal rewrites MP_TYPE
+   road            no    connect_transport uses base group/tables
+   light_industry  no    animation assumes CST_INDUSTRY_L_*
+   university      yes   generic clean module
+   commune         no    base CST_COMMUNE_* lifetime/animation
+   market          yes   base type animation guarded; market logic is generic
+   oremine         no    base ore/type animation
+   tip             no    base ore-reserve/type rules
+   port            yes   generic port logic; water connection is base-only
+   heavy_industry  no    animation assumes CST_INDUSTRY_H_*
+   parkland        yes   no simulation
+   recycle         no    checks base GROUP_RAIL/ROAD/TRACK adjacency
+   water           yes   no simulation; base connection graphics only
+   health_centre   yes   generic clean module
+   rocket_pad      no    base rocket/type animation
+   windmill        no    rewrites MP_TYPE to CST_WINDMILL_*
+   monument        no    base monument/type animation
+   school          yes   generic clean module
+   blacksmith      no    base animation assumes CST_BLACKSMITH_*
+   mill            no    base animation assumes CST_MILL_*
+   pottery         no    base animation assumes CST_POTTERY_*
+   firestation     no    base animation assumes CST_FIRESTATION_*
+   cricket         no    base animation assumes CST_CRICKET_*
+   fire            no    base CST_FIRE_* state machine
+   shanty          no    base shanty/fire behavior
+   organic_farm    no    rewrites MP_TYPE to CST_FARM_O* */
 static const struct MOD_BEHAVIOR builtin_behaviors[] = {
-    { "bare", GROUP_TRAIT_BARE, NULL, NULL, NULL },
+    { "bare", GROUP_TRAIT_BARE, NULL, NULL, NULL, 1 },
     { "power_line",
       GROUP_TRAIT_POWER_LINE | GROUP_TRAIT_POWER_GRID | GROUP_TRAIT_TRANSPORT,
-      do_power_line, mps_power_line, NULL },
+      do_power_line, mps_power_line, NULL, 0 },
     { "solar_power",
       GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_SOLAR
       | GROUP_TRAIT_POWER_GRID,
-      do_power_source, mps_solar_power, update_tech_solar_power },
+      do_power_source, mps_solar_power, update_tech_solar_power, 1 },
     { "substation",
       GROUP_TRAIT_SUBSTATION | GROUP_TRAIT_POWER_ENTRY
       | GROUP_TRAIT_POWER_GRID,
-      do_power_substation, mps_substation, NULL },
+      do_power_substation, mps_substation, NULL, 1 },
     { "residence", GROUP_TRAIT_RESIDENCE,
-      do_residence, mps_residence, NULL },
+      do_residence, mps_residence, NULL, 0 },
     { "track", GROUP_TRAIT_TRACK | GROUP_TRAIT_TRANSPORT,
-      do_track, mps_track, NULL },
+      do_track, mps_track, NULL, 0 },
     { "coalmine", GROUP_TRAIT_COALMINE,
-      do_coalmine, mps_coalmine, NULL },
+      do_coalmine, mps_coalmine, NULL, 0 },
     { "rail", GROUP_TRAIT_RAIL | GROUP_TRAIT_TRANSPORT,
-      do_rail, mps_rail, NULL },
+      do_rail, mps_rail, NULL, 0 },
     { "coal_power",
       GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_POWER_COAL
       | GROUP_TRAIT_POWER_GRID,
-      do_power_source_coal, mps_coal_power, update_tech_coal_power },
+      do_power_source_coal, mps_coal_power, update_tech_coal_power, 0 },
     { "road", GROUP_TRAIT_ROAD | GROUP_TRAIT_TRANSPORT,
-      do_road, mps_road, NULL },
+      do_road, mps_road, NULL, 0 },
     { "light_industry", 0,
-      do_industry_l, mps_light_industry, NULL },
+      do_industry_l, mps_light_industry, NULL, 0 },
     { "university", 0,
-      do_university, mps_university, NULL },
+      do_university, mps_university, NULL, 1 },
     { "commune", GROUP_TRAIT_COMMUNE,
-      do_commune, mps_commune, NULL },
+      do_commune, mps_commune, NULL, 0 },
     { "market", GROUP_TRAIT_MARKET,
-      do_market, mps_market, NULL },
+      do_market, mps_market, NULL, 1 },
     { "oremine", GROUP_TRAIT_OREMINE,
-      do_oremine, mps_oremine, NULL },
+      do_oremine, mps_oremine, NULL, 0 },
     { "tip", GROUP_TRAIT_TIP,
-      do_tip, mps_tip, NULL },
+      do_tip, mps_tip, NULL, 0 },
     { "port", GROUP_TRAIT_PORT,
-      do_port, mps_port, NULL },
+      do_port, mps_port, NULL, 1 },
     { "heavy_industry", 0,
-      do_industry_h, mps_heavy_industry, NULL },
-    { "parkland", 0, do_parkland, NULL, NULL },
+      do_industry_h, mps_heavy_industry, NULL, 0 },
+    { "parkland", 0, do_parkland, NULL, NULL, 1 },
     { "recycle", GROUP_TRAIT_RECYCLE,
-      do_recycle, mps_recycle, NULL },
-    { "water", GROUP_TRAIT_WATER, NULL, mps_water, NULL },
+      do_recycle, mps_recycle, NULL, 0 },
+    { "water", GROUP_TRAIT_WATER, NULL, mps_water, NULL, 1 },
     { "health_centre", GROUP_TRAIT_HEALTH,
-      do_health_centre, mps_health_centre, NULL },
-    { "rocket_pad", 0, do_rocket_pad, mps_rocket, NULL },
+      do_health_centre, mps_health_centre, NULL, 1 },
+    { "rocket_pad", 0, do_rocket_pad, mps_rocket, NULL, 0 },
     { "windmill",
       GROUP_TRAIT_POWER_SOURCE | GROUP_TRAIT_WINDMILL
       | GROUP_TRAIT_POWER_ENTRY | GROUP_TRAIT_POWER_GRID,
-      do_windmill, mps_windmill, update_tech_windmill },
-    { "monument", 0, do_monument, mps_monument, NULL },
-    { "school", 0, do_school, mps_school, NULL },
-    { "blacksmith", 0, do_blacksmith, mps_blacksmith, NULL },
-    { "mill", 0, do_mill, mps_mill, NULL },
-    { "pottery", 0, do_pottery, mps_pottery, NULL },
+      do_windmill, mps_windmill, update_tech_windmill, 0 },
+    { "monument", 0, do_monument, mps_monument, NULL, 0 },
+    { "school", 0, do_school, mps_school, NULL, 1 },
+    { "blacksmith", 0, do_blacksmith, mps_blacksmith, NULL, 0 },
+    { "mill", 0, do_mill, mps_mill, NULL, 0 },
+    { "pottery", 0, do_pottery, mps_pottery, NULL, 0 },
     { "firestation", GROUP_TRAIT_FIRESTATION,
-      do_firestation, mps_firestation, NULL },
+      do_firestation, mps_firestation, NULL, 0 },
     { "cricket", GROUP_TRAIT_CRICKET,
-      do_cricket, mps_cricket, NULL },
-    { "fire", GROUP_TRAIT_FIRE, do_fire, NULL, NULL },
-    { "shanty", GROUP_TRAIT_SHANTY, do_shanty, NULL, NULL },
+      do_cricket, mps_cricket, NULL, 0 },
+    { "fire", GROUP_TRAIT_FIRE, do_fire, NULL, NULL, 0 },
+    { "shanty", GROUP_TRAIT_SHANTY, do_shanty, NULL, NULL, 0 },
     { "organic_farm", GROUP_TRAIT_ORGANIC_FARM,
-      do_organic_farm, mps_organic_farm, update_tech_organic_farm },
+      do_organic_farm, mps_organic_farm, update_tech_organic_farm, 0 },
 };
 
 const struct MOD_BEHAVIOR *

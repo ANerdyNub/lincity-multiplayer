@@ -6,6 +6,8 @@ requires the host to close this client.  The host must remain alive.
 """
 import argparse
 import socket
+
+from net_handshake import recv_welcome, send_hello
 import struct
 import sys
 import time
@@ -28,6 +30,12 @@ def recv_line(sock):
     return buf
 
 
+def recv_mod_header(sock):
+    while True:
+        if recv_line(sock).strip() == b"end":
+            return
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
@@ -37,8 +45,9 @@ def main():
 
     sock = socket.create_connection((args.host, args.port), timeout=args.timeout)
     try:
-        sock.sendall(b"72 2\n")
-        print("welcome: %s" % recv_line(sock).decode("ascii", "replace").strip(),
+        send_hello(sock)
+        world, version, base, _, _ = recv_welcome(sock)
+        print("welcome: W %d %d %s" % (world, version, base),
               flush=True)
         hdr = recv_exact(sock, 8)
         usz, csz = struct.unpack("<II", hdr)

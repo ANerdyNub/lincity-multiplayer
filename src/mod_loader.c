@@ -1145,27 +1145,56 @@ preview_ids (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
     for (i = 0; i < num_types; i++)
         used_types[i] = 1;
 
+    /* Reserve every explicit ID before handing out any automatic one.  A
+       later mod that asks for the ID an earlier mod would otherwise have
+       taken must load in either order. */
     for (i = 0; i < enabled_count; i++) {
         struct MOD_SPEC *mod = &mods[load_order[i]];
         for (j = 0; j < mod->group_count; j++) {
             struct GROUP_SPEC *group = &mod->groups[j];
             int id = group->group_id;
 
-            if (id == 0) {
-                for (id = NUM_OF_GROUPS; id < MAX_GROUPS; id++) {
-                    if (!used_groups[id])
-                        break;
-                }
-                if (id >= MAX_GROUPS) {
-                    set_error (err, err_size,
-                               "mod %s: no free group IDs", mod->id);
-                    return 0;
-                }
-            } else if (id < NUM_OF_GROUPS || id >= MAX_GROUPS
-                       || used_groups[id]) {
+            if (id == 0)
+                continue;
+            if (id < NUM_OF_GROUPS || id >= MAX_GROUPS || used_groups[id]) {
                 set_error (err, err_size,
                            "mod %s: group '%s' uses reserved or duplicate ID %d",
                            mod->id, group->key, id);
+                return 0;
+            }
+            used_groups[id] = 1;
+        }
+        for (j = 0; j < mod->type_count; j++) {
+            struct TYPE_SPEC *type = &mod->types[j];
+            int id = type->type_id;
+
+            if (id == 0)
+                continue;
+            if (id < NUM_OF_TYPES || id >= MAX_TYPES || used_types[id]) {
+                set_error (err, err_size,
+                           "mod %s: type '%s' uses reserved or duplicate ID %d",
+                           mod->id, type->key, id);
+                return 0;
+            }
+            used_types[id] = 1;
+        }
+    }
+
+    for (i = 0; i < enabled_count; i++) {
+        struct MOD_SPEC *mod = &mods[load_order[i]];
+        for (j = 0; j < mod->group_count; j++) {
+            struct GROUP_SPEC *group = &mod->groups[j];
+            int id = group->group_id;
+
+            if (id != 0)
+                continue;
+            for (id = NUM_OF_GROUPS; id < MAX_GROUPS; id++) {
+                if (!used_groups[id])
+                    break;
+            }
+            if (id >= MAX_GROUPS) {
+                set_error (err, err_size,
+                           "mod %s: no free group IDs", mod->id);
                 return 0;
             }
             used_groups[id] = 1;
@@ -1175,21 +1204,15 @@ preview_ids (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
             struct TYPE_SPEC *type = &mod->types[j];
             int id = type->type_id;
 
-            if (id == 0) {
-                for (id = NUM_OF_TYPES; id < MAX_TYPES; id++) {
-                    if (!used_types[id])
-                        break;
-                }
-                if (id >= MAX_TYPES) {
-                    set_error (err, err_size,
-                               "mod %s: no free type IDs", mod->id);
-                    return 0;
-                }
-            } else if (id < NUM_OF_TYPES || id >= MAX_TYPES
-                       || used_types[id]) {
+            if (id != 0)
+                continue;
+            for (id = NUM_OF_TYPES; id < MAX_TYPES; id++) {
+                if (!used_types[id])
+                    break;
+            }
+            if (id >= MAX_TYPES) {
                 set_error (err, err_size,
-                           "mod %s: type '%s' uses reserved or duplicate ID %d",
-                           mod->id, type->key, id);
+                           "mod %s: no free type IDs", mod->id);
                 return 0;
             }
             used_types[id] = 1;
@@ -1357,6 +1380,12 @@ commit_mods (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
             if (group->behavior_def == NULL) {
                 set_error (err, err_size,
                            "mod %s: unknown behavior '%s'",
+                           mod->id, behavior);
+                goto fail;
+            }
+            if (!group->behavior_def->mod_safe) {
+                set_error (err, err_size,
+                           "mod %s: behavior '%s' is not safe for mods",
                            mod->id, behavior);
                 goto fail;
             }

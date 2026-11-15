@@ -24,7 +24,11 @@ REQUIRE_LOG="any"
 REQUIRE_LINE=
 ORIGIN=
 SEED=
-HELLO_VERSION=2
+NETWORK_VERSION=4
+HELLO_VERSION=4
+HELLO_BASE_VERSION=1.15.0
+HELLO_EXTRA_MOD=0
+HELLO_PLUGIN=0
 EXPECT_HELLO_REJECTED=0
 NO_HELLO=0
 SLOWLINE=0
@@ -52,6 +56,9 @@ while [ $# -gt 0 ]; do
     --origin) ORIGIN=$2; shift 2 ;;
     --seed) SEED=$2; shift 2 ;;
     --hello-version) HELLO_VERSION=$2; shift 2 ;;
+    --hello-base-version) HELLO_BASE_VERSION=$2; shift 2 ;;
+    --hello-extra-mod) HELLO_EXTRA_MOD=1; shift ;;
+    --hello-plugin) HELLO_PLUGIN=1; shift ;;
     --expect-hello-rejected) EXPECT_HELLO_REJECTED=1; shift ;;
     --no-hello) NO_HELLO=1; shift ;;
     --slowline) SLOWLINE=1; shift ;;
@@ -170,7 +177,9 @@ elif [ "$NO_HELLO" = 1 ]; then
     SECOND_PID=$!
 else
     set -- "$ROOT/tests/fake_client.py" --wait 1 \
-        --hello-version "$HELLO_VERSION"
+        --hello-version "$HELLO_VERSION" --hello-base-version "$HELLO_BASE_VERSION"
+    [ "$HELLO_EXTRA_MOD" = 1 ] && set -- "$@" --hello-extra-mod
+    [ "$HELLO_PLUGIN" = 1 ] && set -- "$@" --hello-plugin
     [ "$EXPECT_HELLO_REJECTED" = 1 ] && set -- "$@" --expect-disconnect
     while IFS= read -r p; do
         [ -n "$p" ] || continue
@@ -285,13 +294,13 @@ if [ "$EXPECT_HELLO_REJECTED" = 1 ]; then
         cat "$TMP/host.log" >&2 || true
         exit 1
     fi
-    if ! grep -Fq "network: rejected client protocol version $HELLO_VERSION (expected 2)" "$TMP/host.log"; then
-        echo "FAIL: host did not reject protocol version $HELLO_VERSION" >&2
+    if ! grep -Fq 'network: rejected client handshake:' "$TMP/host.log"; then
+        echo "FAIL: host did not reject the client handshake" >&2
         cat "$TMP/client.log" >&2 || true
         cat "$TMP/host.log" >&2 || true
         exit 1
     fi
-    echo "PASS: host rejected protocol version $HELLO_VERSION before a map"
+    echo "PASS: host rejected the client handshake before a map"
     exit 0
 fi
 

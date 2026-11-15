@@ -38,7 +38,7 @@ static int checks;
     } while (0)
 
 static const struct MOD_BEHAVIOR park_behavior = {
-    "parkland", 0, NULL, NULL, NULL
+    "parkland", 0, NULL, NULL, NULL, 1
 };
 
 static const struct MOD_BEHAVIOR *
@@ -281,6 +281,42 @@ test_missing_and_incompatible (void)
 }
 
 static void
+test_extra_enabled_mod (void)
+{
+    static const char *const header =
+        "#lcm 1\n"
+        "mods 1\n"
+        "mod config_a 1.0.0 1\n"
+        "types 0\n"
+        "end\n";
+    char err[512];
+    char *full;
+
+    reset_base_registry ();
+    mod_loader_init ();
+    CHECK (mod_loader_load ("tests/fixtures/mods/config", NULL,
+                            test_lookup, test_graphic, err, sizeof err));
+
+    /* config_b is enabled but absent from the save; loading still works. */
+    err[0] = '\0';
+    CHECK (parse_text (header, err, sizeof err));
+
+    /* The network handshake is stricter and rejects the extra enabled mod. */
+    err[0] = '\0';
+    CHECK (!save_mod_header_verify_exact (err, sizeof err));
+    CHECK (strstr (err, "host mod list") != NULL);
+
+    full = save_mod_header_format ();
+    CHECK (full != NULL);
+    if (full != NULL) {
+        CHECK (parse_text (full, err, sizeof err));
+        CHECK (save_mod_header_verify_exact (err, sizeof err));
+        free (full);
+    }
+    mod_loader_shutdown ();
+}
+
+static void
 test_malformed_header (void)
 {
     static const char *const bad[] = {
@@ -345,6 +381,7 @@ main (void)
     test_empty_header ();
     test_mod_header ();
     test_missing_and_incompatible ();
+    test_extra_enabled_mod ();
     test_malformed_header ();
     test_remap_rollback ();
 

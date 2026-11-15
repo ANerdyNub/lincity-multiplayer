@@ -29,10 +29,16 @@
 char *save_mod_header_format (void);
 
 /* Read and validate the block from a save whose version is at least
-   SAVE_MOD_HEADER_SAVE_VERSION.  The mod list must match the enabled mods
-   and every mapped key must be registered.  On failure the header state is
-   reset, err explains why, and nothing outside this module changes. */
+   SAVE_MOD_HEADER_SAVE_VERSION.  Every saved mod must be enabled, but extra
+   enabled mods are allowed because loading remaps by stable key.  Every
+   mapped key must be registered.  On failure the header state is reset, err
+   explains why, and nothing outside this module changes. */
 int save_mod_header_read (FILE *in, char *err, size_t err_size);
+
+/* Require the parsed mod list to match the enabled mods exactly, including
+   order, version, and API.  This is the stricter check used by the network
+   handshake; saves deliberately allow extra enabled mods. */
+int save_mod_header_verify_exact (char *err, size_t err_size);
 
 /* Remap saved type IDs in map->type by stable key.  Uses the mapping from
    the last successful save_mod_header_read().  The check pass runs before

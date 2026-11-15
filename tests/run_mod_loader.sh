@@ -59,6 +59,28 @@ esac
 run --mod-dir "$MODS/valid" --load "$ROOT/opening/good_times.scn" \
     --save "$TMP/mod.scn" --ticks 1 --seed 1 >"$TMP/mod.log" 2>&1 \
     || { cat "$TMP/mod.log" >&2; fail "batch run with a valid mod failed"; }
+
+mkdir -p "$TMP/unsafe/unsafe_mod"
+cp "$MODS/valid/valid_mod/park.png" "$TMP/unsafe/unsafe_mod/park.png"
+cat >"$TMP/unsafe/unsafe_mod/mod.ini" <<'EOF'
+[mod]
+id = unsafe_residence
+name = Unsafe Residence
+version = 1.0.0
+api = 1
+
+[group:house]
+name = Unsafe House
+behavior = residence
+size = 2
+graphic = park.png
+EOF
+if run --mod-dir "$TMP/unsafe" --load "$ROOT/opening/good_times.scn" \
+    --save "$TMP/unsafe.scn" --ticks 0 --seed 1 >"$TMP/unsafe.log" 2>&1; then
+    fail "a data mod was allowed to use the residence behavior"
+fi
+grep -q "not safe for mods" "$TMP/unsafe.log" \
+    || { cat "$TMP/unsafe.log" >&2; fail "unsafe behavior was not reported"; }
 run --load "$ROOT/opening/good_times.scn" \
     --save "$TMP/base.scn" --ticks 1 --seed 1 >"$TMP/base.log" 2>&1 \
     || { cat "$TMP/base.log" >&2; fail "batch baseline run failed"; }

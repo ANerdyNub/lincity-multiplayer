@@ -14,6 +14,7 @@
 #include "module_buttons.h"
 #include "stats.h"
 #include "save_parse.h"
+#include "mod_registry.h"
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -851,7 +852,7 @@ load_city (char *cname)
 
     for (x = 0; x < WORLD_SIDE_LEN; x++)
 	for (y = 0; y < WORLD_SIDE_LEN; y++)
-	    if (MP_GROUP(x,y) == GROUP_MARKET)
+	    if (mod_group_has_trait (MP_GROUP(x,y), GROUP_TRAIT_MARKET))
 		inventory(x,y);
 
     numof_shanties = count_groups (GROUP_SHANTY);

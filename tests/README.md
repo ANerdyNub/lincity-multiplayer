@@ -14,8 +14,11 @@ make check
 The runner compiles the header/helper tests and the focused translation-unit
 tests (network queues, save parsing, market/substation bookkeeping, power
 grids, the P21 `do_market()` corner/edge test, P24 `opendir()` failure, and
-P25 `load_graphic()` validation). `make check` invokes this script through
-`check-local`. The P21, P24, and P25 tests build production translation units
+P25 `load_graphic()` validation). The runner also covers mod-safe behavior
+rejection, explicit/automatic ID reservation, trait-based bulldoze and market
+inventory, and the exact save-header match used by the network. `make check`
+invokes this script through `check-local`. The P21, P24, and P25 tests build
+production translation units
 with AddressSanitizer and UndefinedBehaviorSanitizer; a compiler without those
 runtimes is not supported by those tests. With `xlincity` built, the runner
 also checks that batch startup survives `HOME` being unset (P23). P23 now
@@ -39,7 +42,7 @@ The script:
 
 1. starts `xlincity --host N` with a temporary `HOME` and `LINCITY_HOME`
    pointing at this tree; `LINCITY_NETWORK_HOST=N` is accepted as an
-   equivalent environment variable; the client sends `HELLO 2` and the
+   equivalent environment variable; the client sends `HELLO 4` and the
    host verifies it before sending any welcome or map bytes;
 2. waits for `network: host_start OK` and never pokes `/proc/<pid>/mem` or
    sends lobby keystrokes; the old `xdotool` dependency is gone;
@@ -69,7 +72,7 @@ variables. The host and client logs are printed on failure.
 
 ### Full matrix
 
-`tests/run_network_matrix.sh` runs all 32 host/client cases with per-case
+`tests/run_network_matrix.sh` runs all 38 host/client cases with per-case
 logs and ASan/UBSan report directories. An X display is required.
 
 ```sh
@@ -190,12 +193,18 @@ DISPLAY=:99 tests/run_network_repro.sh --no-hello
 DISPLAY=:99 tests/run_client_repro.sh --version-mismatch
 ```
 
-The wire format is now protocol version **2**. The client sends
-`72 2` (`MSG_HELLO <version>`) immediately after connecting. The host reads
+The wire format is now protocol version **3**. The client sends
+`72 4 1.15.0` (`MSG_HELLO <version> <base_version>`) immediately after connecting. The host reads
 that full line before it accepts the client into the lobby or sends a map;
 malformed, old, and new versions get `88` (`MSG_DISCONN`) and a close. The
-host welcome is `87 100 2` (`MSG_WELCOME <world_side_len> <version>`), and
+host welcome is `87 100 4 1.15.0` (`MSG_WELCOME <world_side_len> <version> <base_version>`), and
 the client rejects any other version before reading the compressed map.
+
+HELLO and WELCOME each carry a `mods <count>` / `mod <id> <version> <api>`
+block and a `plugins <count>` / `plugin <id> <version> <api>` block, terminated
+by `end`. Both sides require an exact, sorted match before WELCOME or any map
+bytes; mismatches are logged as `network: rejected host handshake: ...` or
+`network: rejected client handshake: ...`.
 
 The compressed map payload is 480000 bytes of fixed-width little-endian
 fields: `int16` type and group per cell, a 40-byte info record (`int32
@@ -218,8 +227,8 @@ tests/run_client_repro.sh \
     --expect alive --require-log reject --expect-rejects 3
 ```
 
-`tests/fake_host.py` accepts one client, requires `HELLO 2` (`72 2`),
-sends the numeric welcome `87 100 2`, a valid 480000-byte zeroed map, then
+`tests/fake_host.py` accepts one client, requires `HELLO 3` (`72 3`),
+sends the numeric welcome `87 100 3`, a valid 480000-byte zeroed map, then
 the supplied action lines.
 The real client joins `127.0.0.1:5123` through the same `network_flag` poke
 used by the host harness (key `2`, then the default host and port).  The

@@ -14,6 +14,7 @@
 #include "typeinit.h"
 #include "cliglobs.h"
 #include "engglobs.h"
+#include "mod_registry.h"
 
 
 void
@@ -79,6 +80,9 @@ set_mappoint (int x, int y, short selected_type)
 }
 
 
+/* Base-group connection graphics.  The transport and power_line behaviors
+   are deliberately not mod_safe: these tables and neighbor checks are the
+   reason a data mod cannot select them yet. */
 void
 connect_transport (int originx, int originy, int w, int h)
 {
@@ -161,15 +165,9 @@ connect_transport (int originx, int originy, int w, int h)
 			    || group == GROUP_ROAD
 			    || group == GROUP_WATER))
 		group = MP_GROUP(x,y-2);
-	      switch (group)
-		{
-		case GROUP_POWER_LINE:
-		case GROUP_SOLAR_POWER:
-		case GROUP_SUBSTATION:
-		case GROUP_COAL_POWER:
-		  mask |= 8;
-		  break;
-		}
+	      if (mod_group_has_trait (group, GROUP_TRAIT_POWER_GRID)
+		  && !mod_group_has_trait (group, GROUP_TRAIT_WINDMILL))
+		mask |= 8;
 	    }
 	  if (x > 0)
 	    {		/* left -- (ThMO) */
@@ -179,15 +177,9 @@ connect_transport (int originx, int originy, int w, int h)
 			    || group == GROUP_ROAD
 			    || group == GROUP_WATER))
 		group = MP_GROUP(x-2,y);
-	      switch (group)
-		{
-		case GROUP_POWER_LINE:
-		case GROUP_SOLAR_POWER:
-		case GROUP_SUBSTATION:
-		case GROUP_COAL_POWER:
-		  mask |= 4;
-		  break;
-		}
+	      if (mod_group_has_trait (group, GROUP_TRAIT_POWER_GRID)
+		  && !mod_group_has_trait (group, GROUP_TRAIT_WINDMILL))
+		mask |= 4;
 	    }
 	  if (x < WORLD_SIDE_LEN - 1)
 	    {		/* right -- (ThMO) */
@@ -197,18 +189,10 @@ connect_transport (int originx, int originy, int w, int h)
 					     || group == GROUP_ROAD
 					     || group == GROUP_WATER))
 		group = MP_GROUP(x+2,y);
-	      switch (group)
-		{
-		case GROUP_WINDMILL:
-		  if (MP_INFO(x + 1,y).int_2 < MODERN_WINDMILL_TECH)
-		    break;
-		case GROUP_POWER_LINE:
-		case GROUP_SOLAR_POWER:
-		case GROUP_SUBSTATION:
-		case GROUP_COAL_POWER:
-		  mask |= 2;
-		  break;
-		}
+	      if (mod_group_has_trait (group, GROUP_TRAIT_POWER_GRID)
+		  && (!mod_group_has_trait (group, GROUP_TRAIT_WINDMILL)
+		      || MP_INFO(x + 1,y).int_2 >= MODERN_WINDMILL_TECH))
+		mask |= 2;
 	    }
 	  if (y < WORLD_SIDE_LEN - 1)
 	    {		/* down -- (ThMO) */
@@ -218,18 +202,10 @@ connect_transport (int originx, int originy, int w, int h)
 					     || group == GROUP_ROAD
 					     || group == GROUP_WATER))
 		group = MP_GROUP(x,y+2);
-	      switch (group)
-		{
-		case GROUP_WINDMILL:
-		  if (MP_INFO(x,y + 1).int_2 < MODERN_WINDMILL_TECH)
-		    break;
-		case GROUP_POWER_LINE:
-		case GROUP_SOLAR_POWER:
-		case GROUP_SUBSTATION:
-		case GROUP_COAL_POWER:
-		  ++mask;
-		  break;
-		}
+	      if (mod_group_has_trait (group, GROUP_TRAIT_POWER_GRID)
+		  && (!mod_group_has_trait (group, GROUP_TRAIT_WINDMILL)
+		      || MP_INFO(x,y + 1).int_2 >= MODERN_WINDMILL_TECH))
+		++mask;
 	    }
 	  /* Next, set the connectivity into MP_TYPE */
 	  MP_TYPE(x,y) = power_table[mask];

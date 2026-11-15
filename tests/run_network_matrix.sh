@@ -202,6 +202,15 @@ run_case never-read "$ROOT/tests/run_network_repro.sh" \
     --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --never-read \
     --never-read-duration 30 --expect alive --require-log reject \
     --require-line 'network: rejected malformed action line'
+run_case mod-mismatch "$ROOT/tests/run_network_repro.sh" \
+    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --expect alive \
+    --hello-extra-mod --expect-hello-rejected
+run_case base-version-mismatch "$ROOT/tests/run_network_repro.sh" \
+    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --expect alive \
+    --hello-base-version 0.0.0 --expect-hello-rejected
+run_case plugin-mismatch "$ROOT/tests/run_network_repro.sh" \
+    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --expect alive \
+    --hello-plugin --expect-hello-rejected
 run_case overlong "$ROOT/tests/run_network_repro.sh" \
     --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --overlong \
     --expect alive --require-log overlong
@@ -228,6 +237,9 @@ run_client client-edges \
     --payload '66 10 10 999999999999999999999' \
     --require-log reject --expect-rejects 15
 run_client bad-map --bad-map
+run_client mod-mismatch --mod-mismatch
+run_client base-mismatch --base-mismatch
+run_client plugin-mismatch --plugin-mismatch
 run_client partial-line --partial --payload '66 1 1 71'
 run_client valid-map --payload '66 2 2 71'
 
