@@ -735,6 +735,42 @@ deal_with_transport (int x, int y, int tx, int ty)
   return (extra_jobs);
 }
 
+static int
+get_stuff1 (int x, int y, Map_Point_Info *map, int stuff, int stuff_type)
+{
+  static const int dx[4] = { -1, 1, 0, 0 };
+  static const int dy[4] = { 0, 0, -1, 1 };
+  int i, st = 0, *ip, *stack[4], **ssp;
+
+  /* A 1x1 building can take goods or jobs from its four neighbours. */
+  for (ssp = stack, i = 0; i < 4; i++)
+    {
+      int nx = x + dx[i];
+      int ny = y + dy[i];
+      int offset = dx[i] * WORLD_SIDE_LEN + dy[i];
+
+      if (!map_coord_ok (nx, ny)
+	  || (map[offset].flags & FLAG_IS_TRANSPORT) == 0)
+	continue;
+      ip = &map[offset].int_1;
+      ip += stuff_type;
+      st += *ip;
+      *ssp++ = ip;
+      if (st >= stuff)
+	{
+	  ssp = stack;
+	  do
+	    {
+	      ip = *ssp++;
+	      *ip = (stuff -= *ip) < 0 ? -stuff : 0;
+	    }
+	  while (stuff > 0);
+	  return (1);
+	}
+    }
+  return (0);
+}
+
 int
 get_stuff (int x, int y, int stuff, int stuff_type)
 {
@@ -743,6 +779,9 @@ get_stuff (int x, int y, int stuff, int stuff_type)
 
   switch (MP_SIZE(x,y))
     {
+    case 1:
+      res = get_stuff1 (x, y, minfo, stuff, stuff_type);
+      break;
     case 2:
       res = get_stuff2 (minfo, stuff, stuff_type);
       break;
@@ -940,6 +979,10 @@ get_stuff4 (Map_Point_Info *map, int stuff, int stuff_type)
   return (0);
 }
 
+static int
+put_stuff1 (int x, int y, Map_Point_Info *minfo, short *type,
+            int stuff, int stuff_type);
+
 int
 put_stuff (int x, int y, int stuff, int stuff_type)
 {
@@ -948,6 +991,9 @@ put_stuff (int x, int y, int stuff, int stuff_type)
     Map_Point_Info *minfo = &MP_INFO(x,y);
     switch (MP_SIZE(x,y))
     {
+    case 1:
+	res = put_stuff1 (x, y, minfo, type, stuff, stuff_type);
+	break;
     case 2:
 	res = put_stuff2 (minfo, type, stuff, stuff_type);
 	break;
@@ -981,6 +1027,53 @@ struct stack
   {
     int *ip, max_val;
   };
+
+/* 1x1 counterpart to put_stuff2: fill the four neighbouring transports. */
+static int
+put_stuff1 (int x, int y, Map_Point_Info *minfo, short *type,
+            int stuff, int stuff_type)
+{
+  static const int dx[4] = { -1, 1, 0, 0 };
+  static const int dy[4] = { 0, 0, -1, 1 };
+  int i, st = 0, *ip, tp = 0;
+  struct stack stack[4], *ssp;
+
+  for (ssp = stack, i = 0; i < 4; i++)
+    {
+      int nx = x + dx[i];
+      int ny = y + dy[i];
+      int offset = dx[i] * WORLD_SIDE_LEN + dy[i];
+      int kind;
+
+      if (!map_coord_ok (nx, ny)
+	  || (minfo[offset].flags & FLAG_IS_TRANSPORT) == 0)
+	continue;
+      kind = mod_group_transport_kind (get_group_of_type (type[offset]));
+      if (kind < 0)
+	do_error ("Bad transport type in put_stuff1");
+      tp = tmax[kind][stuff_type];
+      ip = &minfo[offset].int_1;
+      ssp->ip = ip += stuff_type;
+      ssp++->max_val = tp;
+      st += tp - *ip;
+      if (st >= stuff)
+	{
+	  ssp = stack;
+	  do
+	    {
+	      tp = ssp->max_val - *ssp->ip;
+	      if ((stuff -= tp) < 0)
+		*ssp->ip += tp + stuff;
+	      else
+		*ssp->ip = ssp->max_val;
+	      ++ssp;
+	    }
+	  while (stuff > 0);
+	  return (1);
+	}
+    }
+  return (0);
+}
 
 /* worth inlining -- (ThMO) */
 int

@@ -65,20 +65,20 @@ mkdir -p "$TMP/unsafe/unsafe_mod"
 cp "$MODS/valid/valid_mod/park.png" "$TMP/unsafe/unsafe_mod/park.png"
 cat >"$TMP/unsafe/unsafe_mod/mod.ini" <<'EOF'
 [mod]
-id = unsafe_residence
-name = Unsafe Residence
+id = unsafe_industry
+name = Unsafe Industry
 version = 1.0.0
 api = 1
 
-[group:house]
-name = Unsafe House
-behavior = residence
+[group:works]
+name = Unsafe Works
+behavior = heavy_industry
 size = 2
 graphic = park.png
 EOF
 if run --mod-dir "$TMP/unsafe" --load "$ROOT/opening/good_times.scn" \
     --save "$TMP/unsafe.scn" --ticks 0 --seed 1 >"$TMP/unsafe.log" 2>&1; then
-    fail "a data mod was allowed to use the residence behavior"
+    fail "a data mod was allowed to use the heavy_industry behavior"
 fi
 grep -q "not safe for mods" "$TMP/unsafe.log" \
     || { cat "$TMP/unsafe.log" >&2; fail "unsafe behavior was not reported"; }
@@ -119,6 +119,73 @@ if run --list-mods --mod-dir "$TMP/does-not-exist" >"$TMP/missing.log" 2>&1; the
 fi
 grep -q "cannot open mod directory" "$TMP/missing.log" \
     || fail "missing mod directory did not report an error"
+
+# The shipped community pack is playable data: one residence, one
+# light-industry building, and one civic building.  Seed all three onto an
+# old save, run a tick, and prove none of their types was rewritten to a
+# base graphic.
+CONTENT=$ROOT/mods
+listing=$(run --list-mods --mod-dir "$CONTENT")
+[ "$listing" = "community_pack@1.0.0 enabled Community Pack" ] \
+    || fail "unexpected community pack listing: $listing"
+
+PYTHONPATH="$ROOT/tests" python3 - "$ROOT/opening/good_times.scn" \
+    "$TMP/content-seed.gz" <<'PYCONTENT'
+import gzip
+import sys
+from save_mod_header import read_save_header
+
+src, dst = sys.argv[1], sys.argv[2]
+raw = gzip.decompress(open(src, "rb").read())
+lines = raw.decode("utf-8").splitlines()
+_, _, _, start = read_save_header(lines)
+
+def put(x, y, offset, value, width=4):
+    base = start + (x * 100 + y) * 42 + offset
+    for i in range(width):
+        lines[base + i] = str((value >> (8 * i)) & 0xff)
+
+for x, y, type_id in ((10, 10, 400), (12, 10, 401), (14, 10, 402)):
+    put(x, y, 4, 0)
+    lines[start + (x * 100 + y) * 42 + 41] = str(type_id)
+
+# The cottage starts populated.  The workshop starts with enough jobs for
+# its simulation to reach the animation guard instead of returning early.
+put(10, 10, 0, 20)
+put(12, 10, 28, 1000)
+put(12, 10, 20, 100)
+
+with gzip.open(dst, "wt") as handle:
+    handle.write("\n".join(lines) + "\n")
+PYCONTENT
+
+run --mod-dir "$CONTENT" --load "$TMP/content-seed.gz" \
+    --save "$TMP/content-state.gz" --ticks 1 --seed 1 \
+    >"$TMP/content.log" 2>&1 \
+    || { cat "$TMP/content.log" >&2; fail "community pack simulation run failed"; }
+
+PYTHONPATH="$ROOT/tests" python3 - "$TMP/content-state.gz" <<'PYCONTENT'
+import gzip
+import sys
+from save_mod_header import read_save_header
+
+lines = gzip.decompress(open(sys.argv[1], "rb").read()).decode("utf-8").splitlines()
+_, _, type_map, start = read_save_header(lines)
+
+def get(x, y, offset, width=4):
+    base = start + (x * 100 + y) * 42 + offset
+    value = 0
+    for i in range(width):
+        value |= int(lines[base + i]) << (8 * i)
+    return value
+
+assert get(10, 10, 41, 1) == 400
+assert get(12, 10, 41, 1) == 401
+assert get(14, 10, 41, 1) == 402
+assert type_map[400] == "community_pack.cottages"
+assert type_map[401] == "community_pack.workshop"
+assert type_map[402] == "community_pack.academy"
+PYCONTENT
 
 # Native plugin opt-in, dynamic loading, ABI validation, and registration.
 PLUGIN_ROOT="$TMP/native"
