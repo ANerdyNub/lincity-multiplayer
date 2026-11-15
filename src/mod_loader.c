@@ -1,8 +1,9 @@
 /* ---------------------------------------------------------------------- *
  * mod_loader.c
- * Discover data-only mods, validate them without touching the registry,
- * then commit atomically.  Native plugin loading arrives in a later
- * milestone; plugin:* behavior references are rejected for now.
+ * Discover data mods and optional native plugins, validate them without
+ * touching the registry, then commit atomically.  Native plugins require an
+ * explicit opt-in because they run arbitrary code; they are never unloaded
+ * while a city is loaded.
  * ---------------------------------------------------------------------- */
 #include <ctype.h>
 #include <dirent.h>
@@ -12,13 +13,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#if defined(WIN32)
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
+#include "lincity_plugin.h"
 #include "mod_ini.h"
 #include "mod_loader.h"
 
 #define GROUPS_PER_MOD 32
 #define TYPES_PER_MOD  64
 #define CONF_MAX       1024
+#define PLUGIN_MAX_BEHAVIORS 8
+
+#if defined(WIN32)
+#define MOD_PLUGIN_KEY "plugin-windows-x86_64"
+#else
+#define MOD_PLUGIN_KEY "plugin-linux-x86_64"
+#endif
 
 struct GROUP_SPEC
 {
@@ -74,6 +88,8 @@ struct MOD_SPEC
     int type_count;
     struct GROUP_SPEC groups[GROUPS_PER_MOD];
     struct TYPE_SPEC types[TYPES_PER_MOD];
+    char plugin_path[MOD_PATH_MAX + 1];
+    int has_plugin;
 };
 
 struct CONF_ENTRY
@@ -87,6 +103,19 @@ static char enabled_ids[MOD_LIST_MAX][MOD_ID_MAX + 1];
 static char enabled_versions[MOD_LIST_MAX][MOD_VERSION_MAX + 1];
 static int enabled_apis[MOD_LIST_MAX];
 static size_t enabled_total;
+
+#if defined(WIN32)
+typedef HMODULE PLUGIN_HANDLE;
+#else
+typedef void *PLUGIN_HANDLE;
+#endif
+
+static int native_enabled;
+static PLUGIN_HANDLE plugin_handles[MOD_LIST_MAX];
+static const lc_plugin_v1 *plugin_descs[MOD_LIST_MAX];
+static size_t plugin_handle_count;
+static const lc_behavior_v1 *plugin_behaviors[PLUGIN_MAX_BEHAVIORS];
+static size_t plugin_behavior_count;
 
 static void
 set_error (char *err, size_t err_size, const char *format, ...)
@@ -653,13 +682,22 @@ parse_manifest (const char *path, const char *dir, struct MOD_SPEC *mod,
                 }
             }
             if (!known && strncmp (key, "plugin-", 7) == 0) {
-                set_error (err, err_size,
-                           "%s: native plugin loading is not enabled",
-                           path);
-                mod_ini_free (&ini);
-                return 0;
+                if (strcmp (key, MOD_PLUGIN_KEY) == 0) {
+                    value = mod_ini_get (&ini, section, key);
+                    if (value == NULL || value[0] == '\0'
+                        || strlen (value) > MOD_PATH_MAX) {
+                        set_error (err, err_size,
+                                   "%s: invalid native plugin path", path);
+                        mod_ini_free (&ini);
+                        return 0;
+                    }
+                    copy_text (mod->plugin_path,
+                               sizeof mod->plugin_path, value);
+                    mod->has_plugin = 1;
+                }
+                known = 1;
             }
-            if (!known && strncmp (key, "plugin-", 7) != 0) {
+            if (!known) {
                 set_error (err, err_size, "%s: unknown mod key '%s'",
                            path, key);
                 mod_ini_free (&ini);
@@ -698,7 +736,7 @@ parse_manifest (const char *path, const char *dir, struct MOD_SPEC *mod,
             return 0;
         }
     }
-    if (mod->group_count == 0) {
+    if (mod->group_count == 0 && !mod->has_plugin) {
         set_error (err, err_size, "mod %s: no groups are defined", mod->id);
         return 0;
     }
@@ -1346,6 +1384,512 @@ load_graphics (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
     return 1;
 }
 
+static void
+plugin_close_handle (PLUGIN_HANDLE handle)
+{
+    if (handle == NULL)
+        return;
+#if defined(WIN32)
+    FreeLibrary (handle);
+#else
+    dlclose (handle);
+#endif
+}
+
+static void
+plugin_clear_all (void)
+{
+    while (plugin_handle_count > 0) {
+        size_t i = --plugin_handle_count;
+
+        if (plugin_descs[i] != NULL && plugin_descs[i]->shutdown != NULL)
+            plugin_descs[i]->shutdown ();
+        plugin_descs[i] = NULL;
+        plugin_close_handle (plugin_handles[i]);
+        plugin_handles[i] = NULL;
+    }
+    memset (plugin_behaviors, 0, sizeof plugin_behaviors);
+    plugin_behavior_count = 0;
+}
+
+#define PLUGIN_ADAPTER(n)                                                     \
+    static void plugin_simulate_##n (int x, int y)                             \
+    {                                                                         \
+        (void) x; (void) y;                                                   \
+        if (plugin_behaviors[n] != NULL                                   \
+            && plugin_behaviors[n]->simulate != NULL)                         \
+            plugin_behaviors[n]->simulate (NULL, x, y);                       \
+    }                                                                         \
+    static void plugin_mps_##n (int x, int y)                                  \
+    {                                                                         \
+        (void) x; (void) y;                                                   \
+        if (plugin_behaviors[n] != NULL                                   \
+            && plugin_behaviors[n]->mps != NULL)                              \
+            plugin_behaviors[n]->mps (NULL, x, y);                            \
+    }
+
+PLUGIN_ADAPTER(0)
+PLUGIN_ADAPTER(1)
+PLUGIN_ADAPTER(2)
+PLUGIN_ADAPTER(3)
+PLUGIN_ADAPTER(4)
+PLUGIN_ADAPTER(5)
+PLUGIN_ADAPTER(6)
+PLUGIN_ADAPTER(7)
+
+static void (*plugin_simulate_for (size_t index)) (int, int)
+{
+    switch (index) {
+    case 0: return plugin_simulate_0;
+    case 1: return plugin_simulate_1;
+    case 2: return plugin_simulate_2;
+    case 3: return plugin_simulate_3;
+    case 4: return plugin_simulate_4;
+    case 5: return plugin_simulate_5;
+    case 6: return plugin_simulate_6;
+    case 7: return plugin_simulate_7;
+    default: return NULL;
+    }
+}
+
+static void (*plugin_mps_for (size_t index)) (int, int)
+{
+    switch (index) {
+    case 0: return plugin_mps_0;
+    case 1: return plugin_mps_1;
+    case 2: return plugin_mps_2;
+    case 3: return plugin_mps_3;
+    case 4: return plugin_mps_4;
+    case 5: return plugin_mps_5;
+    case 6: return plugin_mps_6;
+    case 7: return plugin_mps_7;
+    default: return NULL;
+    }
+}
+
+static int
+plugin_behavior_index (const lc_plugin_v1 *desc, const char *id,
+                       size_t *index)
+{
+    uint32_t i;
+
+    if (desc == NULL || id == NULL || index == NULL)
+        return 0;
+    for (i = 0; i < desc->behavior_count; i++) {
+        if (desc->behaviors[i].id != NULL
+            && strcmp (desc->behaviors[i].id, id) == 0) {
+            *index = i;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int
+plugin_open_handle (const char *path, PLUGIN_HANDLE *handle,
+                    char *err, size_t err_size)
+{
+#if defined(WIN32)
+    HMODULE h = LoadLibraryA (path);
+
+    if (h == NULL) {
+        set_error (err, err_size, "cannot load native plugin %s (error %lu)",
+                   path, (unsigned long) GetLastError ());
+        return 0;
+    }
+    *handle = h;
+#else
+    void *h = dlopen (path, RTLD_NOW | RTLD_LOCAL);
+
+    if (h == NULL) {
+        const char *why = dlerror ();
+        set_error (err, err_size, "cannot load native plugin %s: %s", path,
+                   why == NULL ? "unknown dlopen error" : why);
+        return 0;
+    }
+    *handle = h;
+#endif
+    return 1;
+}
+
+static int
+plugin_load_one (const struct MOD_SPEC *mod, mod_graphic_load_fn load_graphic,
+                 char *err, size_t err_size)
+{
+    typedef const lc_plugin_v1 *(*PLUGIN_ENTRY) (void);
+    char path[MOD_PATH_MAX + 1];
+    PLUGIN_HANDLE handle = NULL;
+    const lc_plugin_v1 *desc;
+    PLUGIN_ENTRY entry;
+    unsigned short group_ids[GROUPS_PER_MOD];
+    unsigned short type_ids[TYPES_PER_MOD];
+    int type_groups[TYPES_PER_MOD];
+    size_t behavior_indices[GROUPS_PER_MOD];
+    char *graphics[TYPES_PER_MOD];
+    size_t behavior_base = plugin_behavior_count;
+    size_t group_count;
+    size_t type_count;
+    size_t i;
+    size_t j;
+
+    if (mod == NULL || !mod->has_plugin || mod->plugin_path[0] == '\0') {
+        set_error (err, err_size, "mod %s: native plugin path is missing",
+                   mod == NULL ? "?" : mod->id);
+        return 0;
+    }
+    if (!join_relative (path, sizeof path, mod->dir, mod->plugin_path)) {
+        set_error (err, err_size, "mod %s: unsafe native plugin path '%s'",
+                   mod->id, mod->plugin_path);
+        return 0;
+    }
+    if (!file_exists (path)) {
+        set_error (err, err_size, "mod %s: native plugin is missing: %s",
+                   mod->id, mod->plugin_path);
+        return 0;
+    }
+    if (!plugin_open_handle (path, &handle, err, err_size))
+        return 0;
+
+#if defined(WIN32)
+    entry = (PLUGIN_ENTRY) GetProcAddress (handle, "lc_plugin_entry");
+#else
+    entry = (PLUGIN_ENTRY) dlsym (handle, "lc_plugin_entry");
+#endif
+    if (entry == NULL) {
+        set_error (err, err_size, "mod %s: native plugin has no lc_plugin_entry",
+                   mod->id);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    desc = entry ();
+    if (desc == NULL) {
+        set_error (err, err_size, "mod %s: lc_plugin_entry returned NULL",
+                   mod->id);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    if (desc->api_version != LC_PLUGIN_API_VERSION) {
+        set_error (err, err_size,
+                   "mod %s: native plugin API %u is not %u",
+                   mod->id, desc->api_version, LC_PLUGIN_API_VERSION);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    if (desc->size != sizeof (lc_plugin_v1)) {
+        set_error (err, err_size,
+                   "mod %s: native plugin ABI size %u is not %u",
+                   mod->id, desc->size, (unsigned) sizeof (lc_plugin_v1));
+        plugin_close_handle (handle);
+        return 0;
+    }
+    if (desc->id == NULL || strcmp (desc->id, mod->id) != 0) {
+        set_error (err, err_size,
+                   "mod %s: native plugin id does not match the manifest",
+                   mod->id);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    if (desc->version == NULL || strcmp (desc->version, mod->version) != 0) {
+        set_error (err, err_size,
+                   "mod %s: native plugin version does not match the manifest",
+                   mod->id);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    if (desc->behavior_count > PLUGIN_MAX_BEHAVIORS
+        || desc->behavior_count + plugin_behavior_count
+           > PLUGIN_MAX_BEHAVIORS) {
+        set_error (err, err_size, "mod %s: too many native behaviors", mod->id);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    if (desc->behavior_count > 0 && desc->behaviors == NULL) {
+        set_error (err, err_size, "mod %s: native behavior table is missing",
+                   mod->id);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    for (i = 0; i < desc->behavior_count; i++) {
+        const lc_behavior_v1 *behavior = &desc->behaviors[i];
+
+        if (behavior->size != sizeof (lc_behavior_v1)
+            || behavior->id == NULL || !token_ok (behavior->id)) {
+            set_error (err, err_size,
+                       "mod %s: native behavior %zu is invalid", mod->id, i);
+            plugin_close_handle (handle);
+            return 0;
+        }
+        for (j = 0; j < i; j++) {
+            if (strcmp (desc->behaviors[j].id, behavior->id) == 0) {
+                set_error (err, err_size,
+                           "mod %s: duplicate native behavior '%s'",
+                           mod->id, behavior->id);
+                plugin_close_handle (handle);
+                return 0;
+            }
+        }
+    }
+
+    group_count = desc->group_count;
+    type_count = desc->type_count;
+    if (group_count > GROUPS_PER_MOD || type_count > TYPES_PER_MOD
+        || (group_count > 0 && desc->groups == NULL)
+        || (type_count > 0 && desc->types == NULL) || group_count == 0
+        || type_count == 0) {
+        set_error (err, err_size,
+                   "mod %s: native plugin group/type table is invalid",
+                   mod->id);
+        plugin_close_handle (handle);
+        return 0;
+    }
+    memset (graphics, 0, sizeof graphics);
+
+    for (i = 0; i < group_count; i++) {
+        const lc_group_desc_v1 *group = &desc->groups[i];
+        size_t behavior_index;
+        int id;
+
+        if (group->size != sizeof (lc_group_desc_v1)
+            || group->key == NULL || !token_ok (group->key)
+            || group->name == NULL || group->name[0] == '\0'
+            || group->size_sq < 1 || group->size_sq > 4
+            || group->behavior == NULL
+            || !plugin_behavior_index (desc, group->behavior,
+                                       &behavior_index)) {
+            set_error (err, err_size,
+                       "mod %s: native group %zu is invalid", mod->id, i);
+            goto fail;
+        }
+        for (j = 0; j < i; j++) {
+            if (strcmp (desc->groups[j].key, group->key) == 0) {
+                set_error (err, err_size,
+                           "mod %s: duplicate native group '%s'",
+                           mod->id, group->key);
+                goto fail;
+            }
+        }
+        behavior_indices[i] = behavior_base + behavior_index;
+        id = group->group;
+        if (id == 0) {
+            for (id = NUM_OF_GROUPS; id < MAX_GROUPS; id++) {
+                if (main_groups[id].size == 0) {
+                    size_t k;
+
+                    for (k = 0; k < i; k++)
+                        if (group_ids[k] == id)
+                            break;
+                    if (k == i)
+                        break;
+                }
+            }
+        }
+        if (id < NUM_OF_GROUPS || id >= MAX_GROUPS
+            || main_groups[id].size != 0) {
+            set_error (err, err_size,
+                       "mod %s: native group '%s' uses unavailable ID %d",
+                       mod->id, group->key, id);
+            goto fail;
+        }
+        for (j = 0; j < i; j++) {
+            if (group_ids[j] == (unsigned short) id) {
+                set_error (err, err_size,
+                           "mod %s: duplicate native group ID %d",
+                           mod->id, id);
+                goto fail;
+            }
+        }
+        group_ids[i] = (unsigned short) id;
+    }
+
+    for (i = 0; i < type_count; i++) {
+        const lc_type_desc_v1 *type = &desc->types[i];
+        int group_id = type->group;
+        int id;
+
+        if (type->size != sizeof (lc_type_desc_v1)
+            || type->key == NULL || !token_ok (type->key)
+            || type->graphic == NULL || type->graphic[0] == '\0') {
+            set_error (err, err_size,
+                       "mod %s: native type %zu is invalid", mod->id, i);
+            goto fail;
+        }
+        for (j = 0; j < i; j++) {
+            if (strcmp (desc->types[j].key, type->key) == 0) {
+                set_error (err, err_size,
+                           "mod %s: duplicate native type '%s'",
+                           mod->id, type->key);
+                goto fail;
+            }
+        }
+        {
+            size_t k;
+
+            for (k = 0; k < group_count; k++)
+                if (group_ids[k] == (unsigned short) group_id)
+                    break;
+            if (k == group_count) {
+                set_error (err, err_size,
+                           "mod %s: native type '%s' references unknown group %d",
+                           mod->id, type->key, group_id);
+                goto fail;
+            }
+        }
+        id = type->type;
+        if (id == 0) {
+            for (id = NUM_OF_TYPES; id < MAX_TYPES; id++) {
+                size_t k;
+
+                if (main_types[id].group < 0) {
+                    for (k = 0; k < i; k++)
+                        if (type_ids[k] == id)
+                            break;
+                    if (k == i)
+                        break;
+                }
+            }
+        }
+        if (id < NUM_OF_TYPES || id >= MAX_TYPES
+            || main_types[id].group >= 0) {
+            set_error (err, err_size,
+                       "mod %s: native type '%s' uses unavailable ID %d",
+                       mod->id, type->key, id);
+            goto fail;
+        }
+        for (j = 0; j < i; j++) {
+            if (type_ids[j] == (unsigned short) id) {
+                set_error (err, err_size,
+                           "mod %s: duplicate native type ID %d",
+                           mod->id, id);
+                goto fail;
+            }
+        }
+        type_ids[i] = (unsigned short) id;
+        type_groups[i] = group_id;
+        {
+            char graphic_path[MOD_PATH_MAX + 1];
+            char graphic_err[256];
+
+            if (!join_relative (graphic_path, sizeof graphic_path, mod->dir,
+                                type->graphic)) {
+                set_error (err, err_size,
+                           "mod %s: native type '%s' has unsafe graphic '%s'",
+                           mod->id, type->key, type->graphic);
+                goto fail;
+            }
+            if (!file_exists (graphic_path)) {
+                set_error (err, err_size,
+                           "mod %s: native type '%s' graphic is missing: %s",
+                           mod->id, type->key, type->graphic);
+                goto fail;
+            }
+            graphic_err[0] = '\0';
+            graphics[i] = load_graphic (graphic_path, graphic_err,
+                                        sizeof graphic_err);
+            if (graphics[i] == NULL) {
+                set_error (err, err_size,
+                           "mod %s: native type '%s' graphic failed: %s",
+                           mod->id, type->key,
+                           graphic_err[0] == '\0' ? type->graphic
+                                                 : graphic_err);
+                goto fail;
+            }
+        }
+    }
+
+    for (i = 0; i < group_count; i++) {
+        const lc_group_desc_v1 *group = &desc->groups[i];
+        struct GROUP grp;
+        char key[MOD_KEY_LEN + 1];
+        int primary = -1;
+        size_t k;
+
+        for (k = 0; k < type_count; k++) {
+            if (type_groups[k] == group_ids[i]) {
+                primary = (int) k;
+                break;
+            }
+        }
+        if (primary < 0) {
+            set_error (err, err_size,
+                       "mod %s: native group '%s' has no type",
+                       mod->id, group->key);
+            goto fail;
+        }
+        if (!build_key (key, sizeof key, mod->id, group->key)) {
+            set_error (err, err_size, "mod %s: native group key is too long",
+                       mod->id);
+            goto fail;
+        }
+        memset (&grp, 0, sizeof grp);
+        copy_text (grp.name, sizeof grp.name, group->name);
+        grp.size = (unsigned short) group->size_sq;
+        grp.colour = group->colour;
+        grp.cost_mul = group->cost_mul;
+        grp.bul_cost = group->bul_cost;
+        grp.fire_chance = group->fire_chance;
+        grp.cost = group->cost;
+        grp.tech = group->tech;
+        copy_text (grp.category, sizeof grp.category, "Mods");
+        grp.menu_order = 1000 + (int) i;
+        grp.default_type = type_ids[primary];
+        grp.button = graphics[primary];
+        if (!mod_register_group_keyed (group_ids[i], key, mod->id, &grp)) {
+            set_error (err, err_size,
+                       "mod %s: failed to register native group '%s'",
+                       mod->id, group->key);
+            goto fail;
+        }
+        if (!mod_set_group_behavior (group_ids[i], group->traits,
+                                     plugin_simulate_for (behavior_indices[i]),
+                                     plugin_mps_for (behavior_indices[i]),
+                                     NULL)) {
+            set_error (err, err_size,
+                       "mod %s: failed to attach native behavior '%s'",
+                       mod->id, group->behavior);
+            goto fail;
+        }
+    }
+
+    for (i = 0; i < type_count; i++) {
+        const lc_type_desc_v1 *type = &desc->types[i];
+        char key[MOD_KEY_LEN + 1];
+
+        if (!build_key (key, sizeof key, mod->id, type->key)) {
+            set_error (err, err_size, "mod %s: native type key is too long",
+                       mod->id);
+            goto fail;
+        }
+        if (!mod_register_type_keyed (type_ids[i], key, mod->id,
+                                      type_groups[i], graphics[i])) {
+            set_error (err, err_size,
+                       "mod %s: failed to register native type '%s'",
+                       mod->id, type->key);
+            goto fail;
+        }
+    }
+
+    for (i = 0; i < desc->behavior_count; i++)
+        plugin_behaviors[behavior_base + i] = &desc->behaviors[i];
+    plugin_behavior_count = behavior_base + desc->behavior_count;
+
+    if (desc->init != NULL && desc->init (NULL) != 0) {
+        set_error (err, err_size, "mod %s: native plugin init failed",
+                   mod->id);
+        goto fail;
+    }
+    plugin_handles[plugin_handle_count] = handle;
+    plugin_descs[plugin_handle_count] = desc;
+    plugin_handle_count++;
+    return 1;
+
+fail:
+    plugin_behavior_count = behavior_base;
+    for (i = 0; i < type_count; i++)
+        free (graphics[i]);
+    plugin_close_handle (handle);
+    return 0;
+}
+
 static int
 commit_mods (struct MOD_SPEC *mods, const int *load_order, int enabled_count,
              mod_behavior_lookup_fn lookup,
@@ -1532,15 +2076,65 @@ mod_loader_load (const char *dir, const char *conf,
         return 1;
     }
 
-    if (!preview_ids (mods, load_order, enabled, err, err_size)
-        || !load_graphics (mods, load_order, enabled, load_graphic,
-                           err, err_size)) {
-        free_specs (mods, count, 1);
-        return 0;
+    for (i = 0; i < enabled; i++) {
+        struct MOD_SPEC *mod = &mods[load_order[i]];
+
+        if (mod->has_plugin && !native_enabled) {
+            set_error (err, err_size,
+                       "mod %s: native plugin requires --native-plugins",
+                       mod->id);
+            free_specs (mods, count, 0);
+            return 0;
+        }
     }
-    if (!commit_mods (mods, load_order, enabled, lookup, err, err_size)) {
-        free_specs (mods, count, 1);
-        return 0;
+
+    /* Native plugins reserve IDs before data-mod preview so both kinds of
+       mod share one collision-free allocation.  Keep a snapshot around the
+       whole operation so a data-mod failure also unregisters the plugin. */
+    {
+        struct MOD_REGISTRY_STATE *outer = malloc (sizeof *outer);
+
+        if (outer == NULL) {
+            set_error (err, err_size, "out of memory");
+            free_specs (mods, count, 0);
+            return 0;
+        }
+        mod_registry_snapshot (outer);
+        for (i = 0; i < enabled; i++) {
+            struct MOD_SPEC *mod = &mods[load_order[i]];
+
+            if (mod->has_plugin
+                && !plugin_load_one (mod, load_graphic, err, err_size)) {
+                mod_registry_restore (outer);
+                plugin_clear_all ();
+                free (outer);
+                free_specs (mods, count, 0);
+                return 0;
+            }
+        }
+        if (!preview_ids (mods, load_order, enabled, err, err_size)) {
+            mod_registry_restore (outer);
+            plugin_clear_all ();
+            free (outer);
+            free_specs (mods, count, 0);
+            return 0;
+        }
+        if (!load_graphics (mods, load_order, enabled, load_graphic,
+                            err, err_size)) {
+            mod_registry_restore (outer);
+            plugin_clear_all ();
+            free (outer);
+            free_specs (mods, count, 1);
+            return 0;
+        }
+        if (!commit_mods (mods, load_order, enabled, lookup, err, err_size)) {
+            mod_registry_restore (outer);
+            plugin_clear_all ();
+            free (outer);
+            free_specs (mods, count, 1);
+            return 0;
+        }
+        free (outer);
     }
 
     enabled_total = 0;
@@ -1561,10 +2155,18 @@ mod_loader_load (const char *dir, const char *conf,
 }
 
 void
+mod_loader_enable_native (int enabled)
+{
+    native_enabled = enabled != 0;
+}
+
+void
 mod_loader_init (void)
 {
     loaded = 0;
     enabled_total = 0;
+    native_enabled = 0;
+    plugin_clear_all ();
     memset (enabled_apis, 0, sizeof enabled_apis);
 }
 
@@ -1573,6 +2175,8 @@ mod_loader_shutdown (void)
 {
     loaded = 0;
     enabled_total = 0;
+    native_enabled = 0;
+    plugin_clear_all ();
     memset (enabled_apis, 0, sizeof enabled_apis);
 }
 
@@ -1598,4 +2202,34 @@ int
 mod_loader_enabled_api (size_t index)
 {
     return index < enabled_total ? enabled_apis[index] : 0;
+}
+
+size_t
+mod_loader_enabled_plugin_count (void)
+{
+    return loaded ? plugin_handle_count : 0;
+}
+
+const char *
+mod_loader_enabled_plugin_id (size_t index)
+{
+    if (!loaded || index >= plugin_handle_count || plugin_descs[index] == NULL)
+        return NULL;
+    return plugin_descs[index]->id;
+}
+
+const char *
+mod_loader_enabled_plugin_version (size_t index)
+{
+    if (!loaded || index >= plugin_handle_count || plugin_descs[index] == NULL)
+        return NULL;
+    return plugin_descs[index]->version;
+}
+
+int
+mod_loader_enabled_plugin_api (size_t index)
+{
+    if (!loaded || index >= plugin_handle_count || plugin_descs[index] == NULL)
+        return 0;
+    return (int) plugin_descs[index]->api_version;
 }

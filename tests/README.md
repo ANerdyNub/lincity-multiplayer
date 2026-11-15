@@ -25,6 +25,14 @@ also checks that batch startup survives `HOME` being unset (P23). P23 now
 uses the passwd home (`getpwuid(getuid())->pw_dir`), not the install-time
 `LIBDIR`, and prints both that home and the exact save path written.
 
+## Native plugin fixture
+
+`tests/run_mod_loader.sh` also compiles and loads a same-platform `.so`
+fixture (`tests/test_plugin.c`) on Linux. It checks the explicit `--native-plugins`
+opt-in, successful group/type registration in the save header, and rejection
+of both a wrong API version and a wrong ABI struct size. The fixture callbacks
+are no-ops; host accessors and simulation behavior remain the next M6 slice.
+
 ## Network repro
 
 ```sh

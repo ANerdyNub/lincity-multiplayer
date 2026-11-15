@@ -3,9 +3,9 @@
  * Native plugin ABI, version 1.
  * ---------------------------------------------------------------------- *
  * PROVISIONAL AND UNSTABLE.  Do not ship a plugin against this header yet.
- * The struct layout, accessor set and versioning rules may change until
- * Milestone 6 has loaded and validated a real plugin on Linux and the
- * Windows cross-build.  Freeze v1 only after that validation.
+ * The dynamic loader and descriptor checks now work on Linux, and the Windows
+ * cross-build links, but the host accessor set is not implemented.  Freeze v1
+ * only after accessors and a simulation-bearing plugin have been validated.
  * ---------------------------------------------------------------------- */
 #ifndef __lincity_plugin_h__
 #define __lincity_plugin_h__

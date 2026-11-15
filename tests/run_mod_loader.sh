@@ -5,6 +5,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BIN=${LINCITY_ASAN_BIN:-$ROOT/xlincity}
+CC=${CC:-cc}
 MODS=$ROOT/tests/fixtures/mods
 
 while [ $# -gt 0 ]; do
@@ -119,4 +120,69 @@ fi
 grep -q "cannot open mod directory" "$TMP/missing.log" \
     || fail "missing mod directory did not report an error"
 
-echo "PASS: data-mod CLI, listing, config, and PNG integration"
+# Native plugin opt-in, dynamic loading, ABI validation, and registration.
+PLUGIN_ROOT="$TMP/native"
+mkdir -p "$PLUGIN_ROOT/native_mod"
+cp "$MODS/valid/valid_mod/park.png" "$PLUGIN_ROOT/native_mod/park.png"
+cat >"$PLUGIN_ROOT/native_mod/mod.ini" <<'EOF'
+[mod]
+id = native_test
+name = Native Test
+version = 1.0.0
+api = 1
+plugin-linux-x86_64 = test_plugin.so
+EOF
+"$CC" -shared -fPIC -I "$ROOT/src" -o "$PLUGIN_ROOT/native_mod/test_plugin.so" \
+    "$ROOT/tests/test_plugin.c" || fail "native test plugin did not compile"
+
+listing=$(run --list-mods --mod-dir "$PLUGIN_ROOT")
+[ "$listing" = "native_test@1.0.0 enabled Native Test" ] \
+    || fail "unexpected native --list-mods output: $listing"
+
+if run --mod-dir "$PLUGIN_ROOT" --load "$ROOT/opening/good_times.scn" \
+    --save "$TMP/native-off.scn" --ticks 0 --seed 1 \
+    >"$TMP/native-off.log" 2>&1; then
+    fail "native plugin loaded without --native-plugins"
+fi
+grep -q "requires --native-plugins" "$TMP/native-off.log" \
+    || { cat "$TMP/native-off.log" >&2; fail "missing native opt-in error"; }
+
+run --native-plugins --mod-dir "$PLUGIN_ROOT" \
+    --load "$ROOT/opening/good_times.scn" \
+    --save "$TMP/native.scn" --ticks 0 --seed 1 >"$TMP/native.log" 2>&1 \
+    || { cat "$TMP/native.log" >&2; fail "native plugin load failed"; }
+gzip -dc "$TMP/native.scn" | grep -q 'type 400 native_test.park' \
+    || fail "native type was not registered in the save header"
+
+for variant in api size; do
+    BAD_ROOT="$TMP/native-bad-$variant"
+    mkdir -p "$BAD_ROOT/native_bad"
+    cp "$MODS/valid/valid_mod/park.png" "$BAD_ROOT/native_bad/park.png"
+    cat >"$BAD_ROOT/native_bad/mod.ini" <<'EOF'
+[mod]
+id = native_bad
+name = Native Bad
+version = 1.0.0
+api = 1
+plugin-linux-x86_64 = test_plugin_bad.so
+EOF
+    bad_flags=
+    if [ "$variant" = size ]; then bad_flags=-DTEST_BAD_SIZE; fi
+    "$CC" -shared -fPIC -I "$ROOT/src" $bad_flags \
+        -o "$BAD_ROOT/native_bad/test_plugin_bad.so" \
+        "$ROOT/tests/test_plugin_bad.c" || fail "bad native fixture did not compile"
+
+    if run --native-plugins --mod-dir "$BAD_ROOT" \
+        --load "$ROOT/opening/good_times.scn" \
+        --save "$TMP/native-bad.scn" --ticks 0 --seed 1 \
+        >"$TMP/native-bad.log" 2>&1; then
+        fail "native plugin with bad $variant was accepted"
+    fi
+    if [ "$variant" = api ]; then
+        grep -q "native plugin API" "$TMP/native-bad.log"
+    else
+        grep -q "native plugin ABI size" "$TMP/native-bad.log"
+    fi || { cat "$TMP/native-bad.log" >&2; fail "bad $variant was not rejected as expected"; }
+done
+
+echo "PASS: data-mod CLI, listing, config, PNG integration, and native plugin loading"
