@@ -570,6 +570,7 @@ TEST_DIST = \
 	tests/fixtures/*.gz \
 	tests/fixtures/mods/*/* \
 	tests/fixtures/mods/*/*/* \
+	mods/*/* \
 	tests/fuzz_save_corpus/*.gz \
 	tests/fuzz_save_corpus/*.dict
 
@@ -580,7 +581,7 @@ EXTRA_DIST = $(LC_DISTDIRS) $(TEST_DIST) \
 	man/lincity.6
 
 man_MANS = man/lincity.6
-nobase_pkgdata_DATA = help/* icons/* messages/* opening/* colour.pal
+nobase_pkgdata_DATA = help/* icons/* messages/* opening/* colour.pal mods/*/*
 EXTRA_LTLIBRARIES = liblcx.la liblcsvga.la
 AM_CPPFLAGS = -I$(top_srcdir)/src
 bin_PROGRAMS = @PROGS@

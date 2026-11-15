@@ -51,6 +51,7 @@ TEST_DIST = \
 	tests/fixtures/*.gz \
 	tests/fixtures/mods/*/* \
 	tests/fixtures/mods/*/*/* \
+	mods/*/* \
 	tests/fuzz_save_corpus/*.gz \
 	tests/fuzz_save_corpus/*.dict
 
@@ -66,7 +67,7 @@ man_MANS = man/lincity.6
 ## pkgdata_DATA = help/* icons/* messages/* messages/ca/* opening/* colour.pal
 ## pkgdata_DATA = help/* icons/* messages/* opening/* colour.pal
 ## nobase_pkgdata_DATA = help/* icons/* messages/ca/* messages/* opening/* colour.pal
-nobase_pkgdata_DATA = help/* icons/* messages/* opening/* colour.pal
+nobase_pkgdata_DATA = help/* icons/* messages/* opening/* colour.pal mods/*/*
 
 
 ############################################################################

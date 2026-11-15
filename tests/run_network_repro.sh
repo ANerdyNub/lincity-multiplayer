@@ -8,7 +8,7 @@
 #       [--require-log any|reject|accept|overlong] [--require-line TEXT] \
 #       [--expect-build X,Y,TYPE]... [--expect-bulldoze X,Y]... \
 #       [--expect-mflags X,Y,FLAGS]... \
-#       [--binary ./xlincity] [--origin 74] [--seed 2] \
+#       [--binary ./xlincity] [--mod-dir DIR] [--origin 74] [--seed 2] \
 #       [--hello-version N] [--expect-hello-rejected] [--no-hello] \
 #       [--slowline|--never-read|--overlong|--cost]
 #
@@ -21,6 +21,7 @@ BIN=${LINCITY_BIN:-$ROOT/xlincity}
 DISPLAY=${DISPLAY:-:99}
 EXPECT="alive"
 REQUIRE_LOG="any"
+MOD_DIR=
 REQUIRE_LINE=
 ORIGIN=
 SEED=
@@ -42,6 +43,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
     --binary) BIN=$2; shift 2 ;;
     --display) DISPLAY=$2; shift 2 ;;
+    --mod-dir) MOD_DIR=$2; shift 2 ;;
     --payload) PAYLOADS="${PAYLOADS:-}${PAYLOADS:+
 }$2"; shift 2 ;;
     --expect) EXPECT=$2; shift 2 ;;
@@ -108,6 +110,7 @@ PLAYERS=1
 [ "$NEVER_READ" = 1 ] && PLAYERS=2
 
 set -- --host "$PLAYERS"
+[ -n "${MOD_DIR:-}" ] && set -- "$@" --mod-dir "$MOD_DIR"
 [ -n "${ORIGIN:-}" ] && set -- "$@" --origin "$ORIGIN"
 [ -n "${SEED:-}" ] && set -- "$@" --seed "$SEED"
 

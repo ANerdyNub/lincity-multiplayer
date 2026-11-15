@@ -547,13 +547,13 @@ static const struct GROUP base_groups[NUM_OF_GROUPS] =
    power_line      no    connect_transport uses base graph tables
    solar_power     yes   generic power-source fields
    substation      yes   base type animation guarded; grid fields are generic
-   residence       no    capacities come from CST_RESIDENCE_* (TODO: data-driven)
+   residence       yes   non-base types use the generic middle capacity
    track           no    connect_transport uses base group/tables
    coalmine        no    checks GROUP_RAIL/ROAD/TRACK for access
    rail            no    connect_transport uses base group/tables
    coal_power      no    do_power_source_coal rewrites MP_TYPE
    road            no    connect_transport uses base group/tables
-   light_industry  no    animation assumes CST_INDUSTRY_L_*
+   light_industry  yes   non-base types keep their graphic; generic fields only
    university      yes   generic clean module
    commune         no    base CST_COMMUNE_* lifetime/animation
    market          yes   base type animation guarded; market logic is generic
@@ -591,7 +591,7 @@ static const struct MOD_BEHAVIOR builtin_behaviors[] = {
       | GROUP_TRAIT_POWER_GRID,
       do_power_substation, mps_substation, NULL, 1 },
     { "residence", GROUP_TRAIT_RESIDENCE,
-      do_residence, mps_residence, NULL, 0 },
+      do_residence, mps_residence, NULL, 1 },
     { "track", GROUP_TRAIT_TRACK | GROUP_TRAIT_TRANSPORT,
       do_track, mps_track, NULL, 0 },
     { "coalmine", GROUP_TRAIT_COALMINE,
@@ -605,7 +605,7 @@ static const struct MOD_BEHAVIOR builtin_behaviors[] = {
     { "road", GROUP_TRAIT_ROAD | GROUP_TRAIT_TRANSPORT,
       do_road, mps_road, NULL, 0 },
     { "light_industry", 0,
-      do_industry_l, mps_light_industry, NULL, 0 },
+      do_industry_l, mps_light_industry, NULL, 1 },
     { "university", 0,
       do_university, mps_university, NULL, 1 },
     { "commune", GROUP_TRAIT_COMMUNE,

@@ -15,6 +15,15 @@
 #include <mps.h>
 #include <light_industry.h>
 
+/* The base building animates by cycling through CST_INDUSTRY_L_* types.
+   A data mod's type is outside that range, so leave it alone instead of
+   rewriting it to a base type. */
+static int
+base_industry_l_type (int type)
+{
+  return type >= CST_INDUSTRY_L_C && type <= CST_INDUSTRY_L_H4;
+}
+
 
 void
 do_industry_l (int x, int y)
@@ -214,7 +223,9 @@ do_industry_l (int x, int y)
       MP_INFO(x,y).int_6 = (MP_INFO(x,y).int_1)
 	/ (INDUSTRY_L_MAKE_GOODS * 8);
       MP_INFO(x,y).int_1 = 0;
-      if (MP_INFO(x,y).int_6 > 80)
+      if (!base_industry_l_type (MP_TYPE(x,y)))
+	;
+      else if (MP_INFO(x,y).int_6 > 80)
 	{
 	  switch (MP_TYPE(x,y))
 	    {
@@ -270,7 +281,8 @@ do_industry_l (int x, int y)
 	MP_TYPE(x,y) = CST_INDUSTRY_L_C;
     }
   /* now animate */
-  if (real_time >= MP_INFO(x,y).int_7)
+  if (base_industry_l_type (MP_TYPE(x,y))
+      && real_time >= MP_INFO(x,y).int_7)
     {
       MP_INFO(x,y).int_7 = real_time + INDUSTRY_L_ANIM_SPEED;
       switch (MP_TYPE(x,y))

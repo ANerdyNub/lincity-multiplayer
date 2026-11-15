@@ -167,6 +167,20 @@ do_residence (int x, int y)
 	    brm += 10;
 	}
     }
+    else
+    {
+	/* Mod residences use the same generic simulation with the middle
+	   base capacity.  Keep the type untouched; the mod's graphic is its
+	   only visual state. */
+	brm += RESIDENCE2_BRM;
+	drm += p * 3;
+	if (p > 100)
+	{
+	    p--;
+	    people_pool++;
+	    brm += 10;
+	}
+    }
 
     population += p;
 
