@@ -62,7 +62,7 @@ if [ -f "$ROOT/tests/test_mod_loader.c" ]; then
         -o "$ROOT/tests/test_mod_loader" \
         "$ROOT/tests/test_mod_loader.c" \
         "$ROOT/src/mod_ini.c" "$ROOT/src/mod_loader.c" \
-        "$ROOT/src/mod_registry.c"
+        "$ROOT/src/mod_registry.c" -ldl
     "$ROOT/tests/test_mod_loader"
 fi
 
@@ -84,7 +84,7 @@ if [ -f "$ROOT/tests/test_mod_saves.c" ]; then
         -o "$ROOT/tests/test_mod_saves" \
         "$ROOT/tests/test_mod_saves.c" \
         "$ROOT/src/save_mods.c" "$ROOT/src/mod_loader.c" \
-        "$ROOT/src/mod_ini.c" "$ROOT/src/mod_registry.c"
+        "$ROOT/src/mod_ini.c" "$ROOT/src/mod_registry.c" -ldl
     "$ROOT/tests/test_mod_saves"
 fi
 

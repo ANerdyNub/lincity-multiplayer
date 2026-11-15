@@ -8,11 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "engglobs.h"
 #include "lintypes.h"
 #include "mod_loader.h"
 #include "mod_registry.h"
 #include "save_mods.h"
 
+Map map;
 struct GROUP main_groups[MAX_GROUPS];
 struct TYPE main_types[MAX_TYPES];
 

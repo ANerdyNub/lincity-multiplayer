@@ -257,6 +257,7 @@ static long batch_seed = 1;
 static const char *mod_dir_arg;
 static const char *mods_conf_arg;
 static int list_mods;
+static int native_plugins_arg;
 static char default_mod_dir[LC_PATH_MAX];
 
 #ifdef CS_PROFILE
@@ -317,7 +318,8 @@ batch_usage (const char *prog)
     fprintf (stderr,
              "usage: %s --load FILE --save FILE [--bad-load FILE] "
              "[--ticks N] [--seed N] [--freeze-sim]\n"
-             "       %s [--mod-dir DIR] [--mods-conf FILE] [--list-mods]\n",
+             "       %s [--mod-dir DIR] [--mods-conf FILE] [--list-mods]\n"
+             "       [--native-plugins]\n",
              prog, prog);
     exit (2);
 }
@@ -471,6 +473,10 @@ parse_batch_options (int *argc, char **argv)
             list_mods = 1;
             continue;
         }
+        if (strcmp (arg, "--native-plugins") == 0) {
+            native_plugins_arg = 1;
+            continue;
+        }
         if (strcmp (arg, "--freeze-sim") == 0) {
             batch_freeze = 1;
             continue;
@@ -522,6 +528,7 @@ load_data_mods (void)
         return 0;
     }
     mod_loader_init ();
+    mod_loader_enable_native (native_plugins_arg);
     if (!mod_loader_load (configured_mod_dir (), mods_conf_arg,
                           mod_builtin_behavior_lookup, load_png_tile,
                           err, sizeof err)) {

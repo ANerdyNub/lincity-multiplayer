@@ -973,8 +973,9 @@ network_plugin_compare(const void *a, const void *b)
     return pa->api - pb->api;
 }
 
-/* Native plugins arrive in Milestone 6.  Until then both peers advertise an
-   empty plugin list; the protocol still carries and validates the list. */
+/* Native plugins are a separate presence/API list.  Data-only peers still
+   advertise an empty plugin list, but a loaded native plugin is visible to
+   the peer and must match by id, version, and API. */
 static int
 network_local_lists(struct NET_MOD_INFO mods[MOD_LIST_MAX], size_t *mod_count,
                      struct NET_PLUGIN_INFO plugins[NETWORK_MAX_PLUGINS],
@@ -982,8 +983,40 @@ network_local_lists(struct NET_MOD_INFO mods[MOD_LIST_MAX], size_t *mod_count,
 {
     size_t i;
     size_t count = mod_loader_enabled_count();
+    size_t pcount = mod_loader_enabled_plugin_count();
 
-    (void)plugins;
+    if (pcount > NETWORK_MAX_PLUGINS) {
+        network_handshake_error(err, err_size, "too many enabled plugins");
+        return 0;
+    }
+    memset(plugins, 0, sizeof(*plugins) * pcount);
+    for (i = 0; i < pcount; i++) {
+        const char *id = mod_loader_enabled_plugin_id(i);
+        const char *version = mod_loader_enabled_plugin_version(i);
+        int api = mod_loader_enabled_plugin_api(i);
+        size_t j;
+
+        if (id == NULL || version == NULL || id[0] == '\0'
+            || version[0] == '\0' || strlen(id) > MOD_ID_MAX
+            || strlen(version) > MOD_VERSION_MAX || api < 1) {
+            network_handshake_error(err, err_size,
+                                    "enabled plugin list is incomplete");
+            return 0;
+        }
+        for (j = 0; j < i; j++) {
+            if (strcmp(plugins[j].id, id) == 0) {
+                network_handshake_error(err, err_size,
+                                        "plugin %s is enabled twice", id);
+                return 0;
+            }
+        }
+        snprintf(plugins[i].id, sizeof plugins[i].id, "%s", id);
+        snprintf(plugins[i].version, sizeof plugins[i].version, "%s", version);
+        plugins[i].api = api;
+    }
+    qsort(plugins, pcount, sizeof plugins[0], network_plugin_compare);
+    *plugin_count = pcount;
+
     if (count > MOD_LIST_MAX) {
         network_handshake_error(err, err_size, "too many enabled mods");
         return 0;
@@ -1015,7 +1048,6 @@ network_local_lists(struct NET_MOD_INFO mods[MOD_LIST_MAX], size_t *mod_count,
     }
     qsort(mods, count, sizeof mods[0], network_mod_compare);
     *mod_count = count;
-    *plugin_count = 0;
     return 1;
 }
 

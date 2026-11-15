@@ -31,6 +31,10 @@ typedef char *(*mod_graphic_load_fn)(const char *path, char *err,
 void mod_loader_init (void);
 void mod_loader_shutdown (void);
 
+/* Native plugins run arbitrary code.  Enable them only from an explicit
+   user-facing opt-in; data-only mods are unaffected. */
+void mod_loader_enable_native (int enabled);
+
 /* Discover every mod under dir.  conf may be NULL to use dir/mods.conf.
    Returns a malloc'ed list; the caller frees it with
    mod_loader_free_listing(). */
@@ -49,6 +53,12 @@ int mod_loader_load (const char *dir, const char *conf,
 /* Enabled mods in load order, for saves and the multiplayer handshake. */
 size_t mod_loader_enabled_count (void);
 const char *mod_loader_enabled_id (size_t index);
+
+/* Loaded native plugins, for the multiplayer plugin-presence list. */
+size_t mod_loader_enabled_plugin_count (void);
+const char *mod_loader_enabled_plugin_id (size_t index);
+const char *mod_loader_enabled_plugin_version (size_t index);
+int mod_loader_enabled_plugin_api (size_t index);
 const char *mod_loader_enabled_version (size_t index);
 int mod_loader_enabled_api (size_t index);
 

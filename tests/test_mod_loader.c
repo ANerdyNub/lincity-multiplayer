@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "engglobs.h"
 #include "lctypes.h"
 #include "lintypes.h"
 #include "mod_ini.h"
@@ -17,6 +18,7 @@
 #include "mod_registry.h"
 #include "validation.h"
 
+Map map;
 struct GROUP main_groups[MAX_GROUPS];
 struct TYPE main_types[MAX_TYPES];
 
