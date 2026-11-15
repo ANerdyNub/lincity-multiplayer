@@ -154,6 +154,74 @@ run --native-plugins --mod-dir "$PLUGIN_ROOT" \
 gzip -dc "$TMP/native.scn" | grep -q 'type 400 native_test.park' \
     || fail "native type was not registered in the save header"
 
+# Load a city with a 2x2 native building and run one real simulation tick.
+# The callback exercises the host accessors and leaves its result in fields.
+PYTHONPATH="$ROOT/tests" python3 - "$ROOT/opening/good_times.scn" \
+    "$TMP/native-seed.gz" <<'PYNATIVE'
+import gzip
+import sys
+from save_mod_header import read_save_header
+
+src, dst = sys.argv[1], sys.argv[2]
+raw = open(src, "rb").read()
+if raw[:2] == b"\x1f\x8b":
+    raw = gzip.decompress(raw)
+lines = raw.decode("utf-8").splitlines()
+_, _, _, start = read_save_header(lines)
+
+def put(x, y, offset, value, width=4):
+    base = start + (x * 100 + y) * 42 + offset
+    for i in range(width):
+        lines[base + i] = str((value >> (8 * i)) & 0xff)
+
+# Owned origin, then its three CST_USED sub-tiles.  Set a base flag on the
+# origin to prove that plugin flag writes preserve it.
+put(0, 0, 4, 0x10)
+lines[start + 41] = "400"
+for x, y in ((1, 0), (0, 1), (1, 1)):
+    put(x, y, 12, 0)
+    put(x, y, 16, 0)
+    lines[start + (x * 100 + y) * 42 + 41] = "39"
+with gzip.open(dst, "wt") as handle:
+    handle.write("\n".join(lines) + "\n")
+PYNATIVE
+
+run --native-plugins --mod-dir "$PLUGIN_ROOT" \
+    --load "$TMP/native-seed.gz" --save "$TMP/native-state.gz" \
+    --ticks 1 --seed 1 >"$TMP/native-state.log" 2>&1 \
+    || { cat "$TMP/native-state.log" >&2; fail "native simulation run failed"; }
+
+PYTHONPATH="$ROOT/tests" python3 - "$TMP/native-state.gz" <<'PYCHECK'
+import gzip
+import sys
+from save_mod_header import read_save_header
+
+raw = gzip.decompress(open(sys.argv[1], "rb").read())
+lines = raw.decode("utf-8").splitlines()
+_, _, _, start = read_save_header(lines)
+
+def get(x, y, offset, width=4):
+    base = start + (x * 100 + y) * 42 + offset
+    value = 0
+    for i in range(width):
+        value |= int(lines[base + i]) << (8 * i)
+    return value
+
+assert get(0, 0, 41, 1) == 400
+assert get(0, 0, 4) == 0x10000010, hex(get(0, 0, 4))
+assert get(0, 0, 0) == 7
+assert get(0, 0, 8, 2) == 9
+assert get(0, 0, 10, 2) == 10
+assert get(0, 0, 12) == 123
+assert get(0, 0, 16) == 124
+assert get(0, 0, 20) == 111
+assert get(0, 0, 28) == 1, get(0, 0, 28)
+assert get(0, 0, 32) == 1
+assert get(0, 0, 36) == 1
+assert get(1, 0, 41, 1) == 39
+assert get(1, 0, 12) == 0
+PYCHECK
+
 for variant in api size; do
     BAD_ROOT="$TMP/native-bad-$variant"
     mkdir -p "$BAD_ROOT/native_bad"

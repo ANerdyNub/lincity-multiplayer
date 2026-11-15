@@ -19,6 +19,8 @@
 #include <dlfcn.h>
 #endif
 
+#include "engglobs.h"
+#include "lctypes.h"
 #include "lincity_plugin.h"
 #include "mod_ini.h"
 #include "mod_loader.h"
@@ -115,7 +117,18 @@ static PLUGIN_HANDLE plugin_handles[MOD_LIST_MAX];
 static const lc_plugin_v1 *plugin_descs[MOD_LIST_MAX];
 static size_t plugin_handle_count;
 static const lc_behavior_v1 *plugin_behaviors[PLUGIN_MAX_BEHAVIORS];
+static lc_host *plugin_behavior_hosts[PLUGIN_MAX_BEHAVIORS];
 static size_t plugin_behavior_count;
+
+/* One host table per native plugin slot.  The public lc_host must be the
+   first member so a callback can be tied back to its owning plugin. */
+struct PLUGIN_HOST
+{
+    lc_host api;
+    size_t slot;
+};
+static struct PLUGIN_HOST plugin_hosts[PLUGIN_MAX_BEHAVIORS];
+static unsigned char plugin_group_owner[MAX_GROUPS];
 
 static void
 set_error (char *err, size_t err_size, const char *format, ...)
@@ -1396,6 +1409,171 @@ plugin_close_handle (PLUGIN_HANDLE handle)
 #endif
 }
 
+static int
+plugin_map_coord_ok (int x, int y)
+{
+    return x >= 0 && x < WORLD_SIDE_LEN && y >= 0 && y < WORLD_SIDE_LEN;
+}
+
+static struct PLUGIN_HOST *
+plugin_host_from_api (lc_host *h)
+{
+    return (struct PLUGIN_HOST *) h;
+}
+
+static int
+plugin_host_get_origin (lc_host *h, int x, int y, int *ox, int *oy)
+{
+    if (h == NULL || ox == NULL || oy == NULL
+        || !plugin_map_coord_ok (x, y))
+        return 0;
+    if (MP_TYPE (x, y) == CST_USED) {
+        *ox = MP_INFO (x, y).int_1;
+        *oy = MP_INFO (x, y).int_2;
+    } else {
+        *ox = x;
+        *oy = y;
+    }
+    return plugin_map_coord_ok (*ox, *oy)
+        && MP_TYPE (*ox, *oy) != CST_USED;
+}
+
+static int
+plugin_host_get_group (lc_host *h, int x, int y, uint16_t *group)
+{
+    if (h == NULL || group == NULL || !plugin_map_coord_ok (x, y))
+        return 0;
+    *group = (uint16_t) MP_GROUP (x, y);
+    return 1;
+}
+
+static int
+plugin_host_get_type (lc_host *h, int x, int y, uint16_t *type)
+{
+    if (h == NULL || type == NULL || !plugin_map_coord_ok (x, y))
+        return 0;
+    *type = (uint16_t) MP_TYPE (x, y);
+    return 1;
+}
+
+static int32_t *
+plugin_field_ptr (Map_Point_Info *info, uint32_t field)
+{
+    switch (field) {
+    case LC_FIELD_POPULATION: return &info->population;
+    case LC_FIELD_INT_1: return &info->int_1;
+    case LC_FIELD_INT_2: return &info->int_2;
+    case LC_FIELD_INT_3: return &info->int_3;
+    case LC_FIELD_INT_4: return &info->int_4;
+    case LC_FIELD_INT_5: return &info->int_5;
+    case LC_FIELD_INT_6: return &info->int_6;
+    case LC_FIELD_INT_7: return &info->int_7;
+    default: return NULL;
+    }
+}
+
+static int
+plugin_host_get_field (lc_host *h, int x, int y, uint32_t field,
+                       int32_t *value)
+{
+    if (h == NULL || value == NULL || !plugin_map_coord_ok (x, y))
+        return 0;
+    if (field == LC_FIELD_COAL_RESERVE) {
+        *value = MP_INFO (x, y).coal_reserve;
+        return 1;
+    }
+    if (field == LC_FIELD_ORE_RESERVE) {
+        *value = MP_INFO (x, y).ore_reserve;
+        return 1;
+    }
+    {
+        int32_t *p = plugin_field_ptr (&MP_INFO (x, y), field);
+        if (p == NULL)
+            return 0;
+        *value = *p;
+    }
+    return 1;
+}
+
+static int
+plugin_host_get_flags (lc_host *h, int x, int y, uint32_t *flags)
+{
+    if (h == NULL || flags == NULL || !plugin_map_coord_ok (x, y))
+        return 0;
+    *flags = (uint32_t) MP_INFO (x, y).flags;
+    return 1;
+}
+
+static int
+plugin_host_owned_origin (lc_host *h, int x, int y)
+{
+    int group;
+
+    if (h == NULL || !plugin_map_coord_ok (x, y)
+        || MP_TYPE (x, y) == CST_USED)
+        return 0;
+    group = MP_GROUP (x, y);
+    if (group < 0 || group >= MAX_GROUPS)
+        return 0;
+    return plugin_group_owner[group] == (unsigned char)
+        (plugin_host_from_api (h)->slot + 1);
+}
+
+static int
+plugin_host_set_field (lc_host *h, int x, int y, uint32_t field, int32_t value)
+{
+    Map_Point_Info *info;
+    int32_t *p;
+
+    if (!plugin_host_owned_origin (h, x, y))
+        return 0;
+    info = &MP_INFO (x, y);
+    if (field == LC_FIELD_COAL_RESERVE
+        || field == LC_FIELD_ORE_RESERVE) {
+        if (value < 0 || value > 65535)
+            return 0;
+        if (field == LC_FIELD_COAL_RESERVE)
+            info->coal_reserve = (unsigned short) value;
+        else
+            info->ore_reserve = (unsigned short) value;
+        return 1;
+    }
+    p = plugin_field_ptr (info, field);
+    if (p == NULL)
+        return 0;
+    *p = value;
+    return 1;
+}
+
+static int
+plugin_host_set_flags (lc_host *h, int x, int y, uint32_t flags)
+{
+    if (!plugin_host_owned_origin (h, x, y))
+        return 0;
+    MP_INFO (x, y).flags = (int)
+        ((MP_INFO (x, y).flags & ~FLAG_MOD_MASK)
+         | (flags & FLAG_MOD_MASK));
+    return 1;
+}
+
+static void
+plugin_host_prepare (size_t slot)
+{
+    struct PLUGIN_HOST *host = &plugin_hosts[slot];
+
+    memset (host, 0, sizeof *host);
+    host->slot = slot;
+    host->api.size = sizeof host->api;
+    host->api.api_version = LC_HOST_API_VERSION;
+    host->api.get_origin = plugin_host_get_origin;
+    host->api.get_group = plugin_host_get_group;
+    host->api.get_type = plugin_host_get_type;
+    host->api.get_field = plugin_host_get_field;
+    host->api.get_flags = plugin_host_get_flags;
+    host->api.set_field = plugin_host_set_field;
+    host->api.set_flags = plugin_host_set_flags;
+}
+
 static void
 plugin_clear_all (void)
 {
@@ -1409,23 +1587,24 @@ plugin_clear_all (void)
         plugin_handles[i] = NULL;
     }
     memset (plugin_behaviors, 0, sizeof plugin_behaviors);
+    memset (plugin_behavior_hosts, 0, sizeof plugin_behavior_hosts);
+    memset (plugin_group_owner, 0, sizeof plugin_group_owner);
+    memset (plugin_hosts, 0, sizeof plugin_hosts);
     plugin_behavior_count = 0;
 }
 
 #define PLUGIN_ADAPTER(n)                                                     \
     static void plugin_simulate_##n (int x, int y)                             \
     {                                                                         \
-        (void) x; (void) y;                                                   \
         if (plugin_behaviors[n] != NULL                                   \
             && plugin_behaviors[n]->simulate != NULL)                         \
-            plugin_behaviors[n]->simulate (NULL, x, y);                       \
+            plugin_behaviors[n]->simulate (plugin_behavior_hosts[n], x, y);   \
     }                                                                         \
     static void plugin_mps_##n (int x, int y)                                  \
     {                                                                         \
-        (void) x; (void) y;                                                   \
         if (plugin_behaviors[n] != NULL                                   \
             && plugin_behaviors[n]->mps != NULL)                              \
-            plugin_behaviors[n]->mps (NULL, x, y);                            \
+            plugin_behaviors[n]->mps (plugin_behavior_hosts[n], x, y);        \
     }
 
 PLUGIN_ADAPTER(0)
@@ -1527,10 +1706,17 @@ plugin_load_one (const struct MOD_SPEC *mod, mod_graphic_load_fn load_graphic,
     size_t behavior_indices[GROUPS_PER_MOD];
     char *graphics[TYPES_PER_MOD];
     size_t behavior_base = plugin_behavior_count;
+    size_t slot = plugin_handle_count;
     size_t group_count;
     size_t type_count;
     size_t i;
     size_t j;
+
+    if (slot >= PLUGIN_MAX_BEHAVIORS) {
+        set_error (err, err_size, "too many native plugins");
+        return 0;
+    }
+    plugin_host_prepare (slot);
 
     if (mod == NULL || !mod->has_plugin || mod->plugin_path[0] == '\0') {
         set_error (err, err_size, "mod %s: native plugin path is missing",
@@ -1868,22 +2054,27 @@ plugin_load_one (const struct MOD_SPEC *mod, mod_graphic_load_fn load_graphic,
         }
     }
 
-    for (i = 0; i < desc->behavior_count; i++)
+    for (i = 0; i < desc->behavior_count; i++) {
         plugin_behaviors[behavior_base + i] = &desc->behaviors[i];
+        plugin_behavior_hosts[behavior_base + i] = &plugin_hosts[slot].api;
+    }
     plugin_behavior_count = behavior_base + desc->behavior_count;
 
-    if (desc->init != NULL && desc->init (NULL) != 0) {
+    if (desc->init != NULL && desc->init (&plugin_hosts[slot].api) != 0) {
         set_error (err, err_size, "mod %s: native plugin init failed",
                    mod->id);
         goto fail;
     }
-    plugin_handles[plugin_handle_count] = handle;
-    plugin_descs[plugin_handle_count] = desc;
+    for (i = 0; i < group_count; i++)
+        plugin_group_owner[group_ids[i]] = (unsigned char) (slot + 1);
+    plugin_handles[slot] = handle;
+    plugin_descs[slot] = desc;
     plugin_handle_count++;
     return 1;
 
 fail:
     plugin_behavior_count = behavior_base;
+    memset (plugin_behavior_hosts, 0, sizeof plugin_behavior_hosts);
     for (i = 0; i < type_count; i++)
         free (graphics[i]);
     plugin_close_handle (handle);

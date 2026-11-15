@@ -30,8 +30,10 @@ uses the passwd home (`getpwuid(getuid())->pw_dir`), not the install-time
 `tests/run_mod_loader.sh` also compiles and loads a same-platform `.so`
 fixture (`tests/test_plugin.c`) on Linux. It checks the explicit `--native-plugins`
 opt-in, successful group/type registration in the save header, and rejection
-of both a wrong API version and a wrong ABI struct size. The fixture callbacks
-are no-ops; host accessors and simulation behavior remain the next M6 slice.
+of both a wrong API version and a wrong ABI struct size. The fixture also
+patches a 2x2 native building into a base save, runs one simulation tick, and
+checks origin/group/type reads, owned field writes, `FLAG_MOD_MASK`, denied
+sub-tile writes, and denied foreign-cell writes in the saved result.
 
 ## Network repro
 
