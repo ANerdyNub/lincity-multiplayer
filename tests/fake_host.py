@@ -12,9 +12,8 @@ import sys
 import time
 import zlib
 
-NETWORK_VERSION = 3
-MSG_HELLO = 72
-MSG_WELCOME = 87
+from net_handshake import (BASE_VERSION, NETWORK_VERSION, recv_hello,
+                           send_welcome)
 
 
 def recv_line(sock):
@@ -42,10 +41,14 @@ def main():
                     help="send the last payload without a trailing newline")
     ap.add_argument("--welcome-version", type=int, default=NETWORK_VERSION,
                     help="protocol version advertised in MSG_WELCOME")
+    ap.add_argument("--welcome-base-version", default=BASE_VERSION,
+                    help="base game version advertised in MSG_WELCOME")
     ap.add_argument("--no-map", action="store_true",
-                    help="send only the welcome line and keep the socket open")
+                    help="send only the welcome block and keep the socket open")
     ap.add_argument("--mod-mismatch", action="store_true",
                     help="send a host mod list the client must reject")
+    ap.add_argument("--plugin-mismatch", action="store_true",
+                    help="send a host plugin list the client must reject")
     args = ap.parse_args()
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -57,25 +60,26 @@ def main():
     print("accepted %s:%d" % addr, flush=True)
     try:
         conn.settimeout(5.0)
-        hello = recv_line(conn)
-        print("hello: %s" % hello.decode("ascii", "replace").strip(),
-              flush=True)
-        hello_values = [int(p) for p in hello.split()]
-        if hello_values != [MSG_HELLO, NETWORK_VERSION]:
-            raise SystemExit("unexpected hello: %r" % hello)
+        _, hello_version, hello_base, hello_mods, hello_plugins = recv_hello(conn)
+        print("hello: %d %s mods=%d plugins=%d"
+              % (hello_version, hello_base, len(hello_mods),
+                 len(hello_plugins)), flush=True)
+        if hello_version != NETWORK_VERSION:
+            raise SystemExit("unexpected hello version: %d" % hello_version)
 
-        if args.mod_mismatch:
-            conn.sendall(b"#lcm 1\nmods 1\nmod fake_mod 1.0.0 1\n"
-                         b"types 0\nend\n")
-            print("mismatched mod header sent", flush=True)
+        if args.mod_mismatch or args.plugin_mismatch:
+            mods = [("fake_mod", "1.0.0", 1)] if args.mod_mismatch else []
+            plugins = ([("fake_plugin", "1.0.0", 1)]
+                       if args.plugin_mismatch else [])
+            send_welcome(conn, version=args.welcome_version,
+                         base=args.welcome_base_version, mods=mods,
+                         plugins=plugins)
+            print("mismatched welcome block sent", flush=True)
             time.sleep(args.wait)
             return
 
-        conn.sendall(b"#lcm 1\nmods 0\ntypes 0\nend\n")
-
-        # The wire protocol uses numeric message codes: MSG_WELCOME is 87.
-        conn.sendall(("%d 100 %d\n"
-                      % (MSG_WELCOME, args.welcome_version)).encode("ascii"))
+        send_welcome(conn, version=args.welcome_version,
+                     base=args.welcome_base_version)
         if args.no_map:
             print("welcome sent; waiting for the client", flush=True)
             time.sleep(args.wait)

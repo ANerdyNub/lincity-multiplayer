@@ -12,13 +12,13 @@ import struct
 import sys
 import time
 
+from net_handshake import (BASE_VERSION, NETWORK_VERSION, recv_line,
+                           recv_welcome, send_hello)
+
 MSG_BUILD = 66
 MSG_BULLDOZE = 68
 MSG_MFLAGS = 70
-MSG_HELLO = 72
-MSG_WELCOME = 87
 MSG_DISCONN = 88
-NETWORK_VERSION = 3
 
 
 def recv_exact(sock, n):
@@ -36,14 +36,6 @@ def recv_line(sock):
     while not buf.endswith(b"\n"):
         buf += recv_exact(sock, 1)
     return buf
-
-
-def recv_mod_header(sock):
-    """Consume the host's save-format mod block before WELCOME."""
-    while True:
-        line = recv_line(sock)
-        if line.strip() == b"end":
-            return
 
 
 def parse_values(spec, count, label):
@@ -72,6 +64,12 @@ def main():
     ap.add_argument("--timeout", type=float, default=15.0)
     ap.add_argument("--hello-version", type=int, default=NETWORK_VERSION,
                     help="protocol version sent in MSG_HELLO")
+    ap.add_argument("--hello-base-version", default=BASE_VERSION,
+                    help="base game version sent in MSG_HELLO")
+    ap.add_argument("--hello-extra-mod", action="store_true",
+                    help="advertise an extra mod in MSG_HELLO")
+    ap.add_argument("--hello-plugin", action="store_true",
+                    help="advertise a plugin in MSG_HELLO")
     ap.add_argument("--expect-disconnect", action="store_true",
                     help="expect MSG_HELLO rejection instead of a map")
     ap.add_argument("--wait", type=float, default=2.0,
@@ -106,7 +104,11 @@ def main():
     sock = socket.create_connection((args.host, args.port), timeout=args.timeout)
     sock.settimeout(args.timeout)
     try:
-        sock.sendall(("%d %d\n" % (MSG_HELLO, args.hello_version)).encode("ascii"))
+        mods = [("fake_mod", "1.0.0", 1)] if args.hello_extra_mod else []
+        plugins = ([("fake_plugin", "1.0.0", 1)]
+                   if args.hello_plugin else [])
+        send_hello(sock, version=args.hello_version,
+                   base=args.hello_base_version, mods=mods, plugins=plugins)
         if args.expect_disconnect:
             line = recv_line(sock)
             print("hello rejection: %s"
@@ -117,15 +119,14 @@ def main():
             print("PASS: host rejected the client hello before a map", flush=True)
             return
 
-        recv_mod_header(sock)
-        welcome = recv_line(sock)
-        print("welcome: %s" % welcome.decode("ascii", "replace").strip(), flush=True)
-        welcome_values = [int(p) for p in welcome.split()]
-        if (len(welcome_values) != 3
-                or welcome_values[0] != MSG_WELCOME
-                or welcome_values[1] != 100
-                or welcome_values[2] != NETWORK_VERSION):
-            raise SystemExit("unexpected welcome: %r" % welcome)
+        world, version, base, host_mods, host_plugins = recv_welcome(sock)
+        print("welcome: W %d %d %s mods=%d plugins=%d"
+              % (world, version, base, len(host_mods), len(host_plugins)),
+              flush=True)
+        if (world != 100 or version != NETWORK_VERSION
+                or base != BASE_VERSION):
+            raise SystemExit("unexpected welcome: %d %d %s"
+                             % (world, version, base))
 
         hdr = recv_exact(sock, 8)
         usz, csz = struct.unpack("<II", hdr)

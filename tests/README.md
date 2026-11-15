@@ -42,7 +42,7 @@ The script:
 
 1. starts `xlincity --host N` with a temporary `HOME` and `LINCITY_HOME`
    pointing at this tree; `LINCITY_NETWORK_HOST=N` is accepted as an
-   equivalent environment variable; the client sends `HELLO 3` and the
+   equivalent environment variable; the client sends `HELLO 4` and the
    host verifies it before sending any welcome or map bytes;
 2. waits for `network: host_start OK` and never pokes `/proc/<pid>/mem` or
    sends lobby keystrokes; the old `xdotool` dependency is gone;
@@ -72,7 +72,7 @@ variables. The host and client logs are printed on failure.
 
 ### Full matrix
 
-`tests/run_network_matrix.sh` runs all 32 host/client cases with per-case
+`tests/run_network_matrix.sh` runs all 38 host/client cases with per-case
 logs and ASan/UBSan report directories. An X display is required.
 
 ```sh
@@ -194,16 +194,17 @@ DISPLAY=:99 tests/run_client_repro.sh --version-mismatch
 ```
 
 The wire format is now protocol version **3**. The client sends
-`72 3` (`MSG_HELLO <version>`) immediately after connecting. The host reads
+`72 4 1.15.0` (`MSG_HELLO <version> <base_version>`) immediately after connecting. The host reads
 that full line before it accepts the client into the lobby or sends a map;
 malformed, old, and new versions get `88` (`MSG_DISCONN`) and a close. The
-host welcome is `87 100 3` (`MSG_WELCOME <world_side_len> <version>`), and
+host welcome is `87 100 4 1.15.0` (`MSG_WELCOME <world_side_len> <version> <base_version>`), and
 the client rejects any other version before reading the compressed map.
 
-After HELLO, the host sends the save-format mod header before WELCOME. The
-client parses that block with `save_mod_header_read()` and requires an exact
-match with its enabled mods; a mismatch is logged as
-`network: rejected host mod list: ...` before any map bytes are read.
+HELLO and WELCOME each carry a `mods <count>` / `mod <id> <version> <api>`
+block and a `plugins <count>` / `plugin <id> <version> <api>` block, terminated
+by `end`. Both sides require an exact, sorted match before WELCOME or any map
+bytes; mismatches are logged as `network: rejected host handshake: ...` or
+`network: rejected client handshake: ...`.
 
 The compressed map payload is 480000 bytes of fixed-width little-endian
 fields: `int16` type and group per cell, a 40-byte info record (`int32

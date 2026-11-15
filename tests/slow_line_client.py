@@ -7,6 +7,8 @@ The host must keep ticking and must not disconnect this client.
 """
 import argparse
 import socket
+
+from net_handshake import recv_welcome, send_hello
 import struct
 import sys
 import threading
@@ -51,9 +53,9 @@ def main():
     sender_error = []
 
     try:
-        sock.sendall(b"72 3\n")
-        recv_mod_header(sock)
-        print("welcome: %s" % recv_line(sock).decode("ascii", "replace").strip(),
+        send_hello(sock)
+        world, version, base, _, _ = recv_welcome(sock)
+        print("welcome: W %d %d %s" % (world, version, base),
               flush=True)
         hdr = recv_exact(sock, 8)
         usz, csz = struct.unpack("<II", hdr)

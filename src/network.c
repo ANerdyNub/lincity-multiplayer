@@ -21,7 +21,6 @@
 #include "network.h"
 #include "stats.h"
 #include "validation.h"
-#include "save_mods.h"
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -704,17 +703,7 @@ network_host_stop(int server_fd, int client_fd)
 int
 network_host_send_map(int client_fd)
 {
-    char buf[128];
-
     nlog("send_map(%d)\n", client_fd);
-    snprintf(buf, sizeof(buf), "%d %d %d\n", MSG_WELCOME, WORLD_SIDE_LEN,
-             NETWORK_VERSION);
-    if (network_send_raw(client_fd, buf, strlen(buf)) < 0) {
-        nlog("send_map: welcome failed\n");
-        return -1;
-    }
-    nlog("send_map: welcome sent\n");
-
     nlog("send_map: sending compressed world...\n");
     if (send_compressed_map(client_fd, map.type, map.group, map.info, map.pollution) < 0) {
         nlog("send_map: compressed send failed\n");
@@ -898,64 +887,389 @@ parse_action_values(const char *line, int values[4])
     return nvalues;
 }
 
-static int
-network_host_send_mods(int client_fd)
+struct NET_MOD_INFO
 {
-    char *header = save_mod_header_format ();
-    int len;
+    char id[MOD_ID_MAX + 1];
+    char version[MOD_VERSION_MAX + 1];
+    int api;
+};
 
-    if (header == NULL) {
-        fprintf(stderr, "network: could not format the host mod list\n");
-        fflush(stderr);
-        return -1;
-    }
-    len = (int) strlen (header);
-    if (network_send_raw (client_fd, header, len) < 0) {
-        fprintf(stderr, "network: failed to send the host mod list\n");
-        fflush(stderr);
-        free (header);
-        return -1;
-    }
-    free (header);
-    return 0;
+struct NET_PLUGIN_INFO
+{
+    char id[MOD_ID_MAX + 1];
+    char version[MOD_VERSION_MAX + 1];
+    int api;
+};
+
+static void
+network_handshake_error(char *err, size_t err_size, const char *format, ...)
+{
+    va_list args;
+
+    if (err == NULL || err_size == 0)
+        return;
+    va_start(args, format);
+    vsnprintf(err, err_size, format, args);
+    va_end(args);
 }
 
-/* Read exactly one hello line before the host sends any map bytes.  A bad
-   or mismatched version gets an explicit disconnect line and a close.  A
-   valid hello is followed by the save-format mod block, which the client
-   checks before accepting the map. */
+static int
+network_handshake_int(const char *text, int *out)
+{
+    char *p = (char *)text;
+
+    return parse_action_int(&p, out) == 0 && *p == '\0';
+}
+
+static int
+network_split_fields(char *line, char *fields[], int max)
+{
+    int count = 0;
+    char *p = line;
+
+    while (*p != '\0') {
+        while (*p == ' ' || *p == '\t' || *p == '\r')
+            p++;
+        if (*p == '\0')
+            break;
+        if (count >= max)
+            return -1;
+        fields[count++] = p;
+        while (*p != '\0' && *p != ' ' && *p != '\t' && *p != '\r')
+            p++;
+        if (*p != '\0')
+            *p++ = '\0';
+    }
+    return count;
+}
+
+static int
+network_mod_compare(const void *a, const void *b)
+{
+    const struct NET_MOD_INFO *ma = (const struct NET_MOD_INFO *)a;
+    const struct NET_MOD_INFO *mb = (const struct NET_MOD_INFO *)b;
+    int cmp = strcmp(ma->id, mb->id);
+
+    if (cmp != 0)
+        return cmp;
+    cmp = strcmp(ma->version, mb->version);
+    if (cmp != 0)
+        return cmp;
+    return ma->api - mb->api;
+}
+
+static int
+network_plugin_compare(const void *a, const void *b)
+{
+    const struct NET_PLUGIN_INFO *pa = (const struct NET_PLUGIN_INFO *)a;
+    const struct NET_PLUGIN_INFO *pb = (const struct NET_PLUGIN_INFO *)b;
+    int cmp = strcmp(pa->id, pb->id);
+
+    if (cmp != 0)
+        return cmp;
+    cmp = strcmp(pa->version, pb->version);
+    if (cmp != 0)
+        return cmp;
+    return pa->api - pb->api;
+}
+
+/* Native plugins arrive in Milestone 6.  Until then both peers advertise an
+   empty plugin list; the protocol still carries and validates the list. */
+static int
+network_local_lists(struct NET_MOD_INFO mods[MOD_LIST_MAX], size_t *mod_count,
+                     struct NET_PLUGIN_INFO plugins[NETWORK_MAX_PLUGINS],
+                     size_t *plugin_count, char *err, size_t err_size)
+{
+    size_t i;
+    size_t count = mod_loader_enabled_count();
+
+    (void)plugins;
+    if (count > MOD_LIST_MAX) {
+        network_handshake_error(err, err_size, "too many enabled mods");
+        return 0;
+    }
+    memset(mods, 0, sizeof(*mods) * count);
+    for (i = 0; i < count; i++) {
+        const char *id = mod_loader_enabled_id(i);
+        const char *version = mod_loader_enabled_version(i);
+        int api = mod_loader_enabled_api(i);
+        size_t j;
+
+        if (id == NULL || version == NULL || id[0] == '\0'
+            || version[0] == '\0' || strlen(id) > MOD_ID_MAX
+            || strlen(version) > MOD_VERSION_MAX || api < 1) {
+            network_handshake_error(err, err_size,
+                                    "enabled mod list is incomplete");
+            return 0;
+        }
+        for (j = 0; j < i; j++) {
+            if (strcmp(mods[j].id, id) == 0) {
+                network_handshake_error(err, err_size,
+                                        "mod %s is enabled twice", id);
+                return 0;
+            }
+        }
+        snprintf(mods[i].id, sizeof mods[i].id, "%s", id);
+        snprintf(mods[i].version, sizeof mods[i].version, "%s", version);
+        mods[i].api = api;
+    }
+    qsort(mods, count, sizeof mods[0], network_mod_compare);
+    *mod_count = count;
+    *plugin_count = 0;
+    return 1;
+}
+
+static int
+network_send_handshake(int fd, int welcome)
+{
+    struct NET_MOD_INFO mods[MOD_LIST_MAX];
+    struct NET_PLUGIN_INFO plugins[NETWORK_MAX_PLUGINS];
+    size_t mod_count = 0;
+    size_t plugin_count = 0;
+    size_t i;
+    char err[256];
+
+    if (!network_local_lists(mods, &mod_count, plugins, &plugin_count,
+                             err, sizeof err)) {
+        fprintf(stderr, "network: %s\n", err);
+        fflush(stderr);
+        return -1;
+    }
+    if (welcome) {
+        if (network_send_text(fd, "%d %d %d %s\n", MSG_WELCOME,
+                              WORLD_SIDE_LEN, NETWORK_VERSION, VERSION) < 0)
+            return -1;
+    } else if (network_send_text(fd, "%d %d %s\n", MSG_HELLO,
+                                 NETWORK_VERSION, VERSION) < 0) {
+        return -1;
+    }
+    if (network_send_text(fd, "mods %d\n", (int)mod_count) < 0)
+        return -1;
+    for (i = 0; i < mod_count; i++) {
+        if (network_send_text(fd, "mod %s %s %d\n", mods[i].id,
+                              mods[i].version, mods[i].api) < 0)
+            return -1;
+    }
+    if (network_send_text(fd, "plugins %d\n", (int)plugin_count) < 0)
+        return -1;
+    for (i = 0; i < plugin_count; i++) {
+        if (network_send_text(fd, "plugin %s %s %d\n", plugins[i].id,
+                              plugins[i].version, plugins[i].api) < 0)
+            return -1;
+    }
+    return network_send_text(fd, "end\n");
+}
+
+static int
+network_recv_handshake(int fd, int welcome, int *world, char *err,
+                       size_t err_size)
+{
+    char line[NETWORK_HANDSHAKE_LINE];
+    char *fields[8];
+    struct NET_MOD_INFO remote_mods[MOD_LIST_MAX];
+    struct NET_PLUGIN_INFO remote_plugins[NETWORK_MAX_PLUGINS];
+    struct NET_MOD_INFO local_mods[MOD_LIST_MAX];
+    struct NET_PLUGIN_INFO local_plugins[NETWORK_MAX_PLUGINS];
+    size_t remote_mod_count = 0;
+    size_t remote_plugin_count = 0;
+    size_t local_mod_count = 0;
+    size_t local_plugin_count = 0;
+    size_t i;
+    int n;
+    int code;
+    int proto;
+    int count;
+
+    if (err != NULL && err_size > 0)
+        err[0] = '\0';
+    n = network_recv_line(fd, line, sizeof line);
+    if (n <= 0) {
+        network_handshake_error(err, err_size, "handshake is missing");
+        return 0;
+    }
+    n = network_split_fields(line, fields, 8);
+    if (welcome) {
+        if (n != 4 || !network_handshake_int(fields[0], &code)
+            || code != MSG_WELCOME
+            || !network_handshake_int(fields[1], world)
+            || !network_handshake_int(fields[2], &proto)
+            || *world < 1 || *world > 4096) {
+            network_handshake_error(err, err_size, "malformed welcome");
+            return 0;
+        }
+        if (strcmp(fields[3], VERSION) != 0) {
+            network_handshake_error(err, err_size,
+                                    "base version '%s' (expected '%s')",
+                                    fields[3], VERSION);
+            return 0;
+        }
+    } else {
+        if (n != 3 || !network_handshake_int(fields[0], &code)
+            || code != MSG_HELLO
+            || !network_handshake_int(fields[1], &proto)) {
+            network_handshake_error(err, err_size, "malformed hello");
+            return 0;
+        }
+        if (strcmp(fields[2], VERSION) != 0) {
+            network_handshake_error(err, err_size,
+                                    "base version '%s' (expected '%s')",
+                                    fields[2], VERSION);
+            return 0;
+        }
+    }
+    if (proto != NETWORK_VERSION) {
+        network_handshake_error(err, err_size,
+                                "protocol version %d (expected %d)",
+                                proto, NETWORK_VERSION);
+        return 0;
+    }
+
+    n = network_recv_line(fd, line, sizeof line);
+    if (n <= 0 || network_split_fields(line, fields, 8) != 2
+        || strcmp(fields[0], "mods") != 0
+        || !network_handshake_int(fields[1], &count)
+        || count < 0 || count > MOD_LIST_MAX) {
+        network_handshake_error(err, err_size, "invalid mod list");
+        return 0;
+    }
+    for (i = 0; i < (size_t)count; i++) {
+        int api;
+
+        n = network_recv_line(fd, line, sizeof line);
+        if (n <= 0 || network_split_fields(line, fields, 8) != 4
+            || strcmp(fields[0], "mod") != 0
+            || fields[1][0] == '\0' || strlen(fields[1]) > MOD_ID_MAX
+            || fields[2][0] == '\0' || strlen(fields[2]) > MOD_VERSION_MAX
+            || !network_handshake_int(fields[3], &api) || api < 1) {
+            network_handshake_error(err, err_size, "invalid mod list");
+            return 0;
+        }
+        snprintf(remote_mods[i].id, sizeof remote_mods[i].id, "%s",
+                 fields[1]);
+        snprintf(remote_mods[i].version, sizeof remote_mods[i].version, "%s",
+                 fields[2]);
+        remote_mods[i].api = api;
+        if (i > 0 && network_mod_compare(&remote_mods[i - 1],
+                                         &remote_mods[i]) >= 0) {
+            network_handshake_error(err, err_size, "mod list is not sorted");
+            return 0;
+        }
+    }
+    remote_mod_count = (size_t)count;
+
+    n = network_recv_line(fd, line, sizeof line);
+    if (n <= 0 || network_split_fields(line, fields, 8) != 2
+        || strcmp(fields[0], "plugins") != 0
+        || !network_handshake_int(fields[1], &count)
+        || count < 0 || count > NETWORK_MAX_PLUGINS) {
+        network_handshake_error(err, err_size, "invalid plugin list");
+        return 0;
+    }
+    for (i = 0; i < (size_t)count; i++) {
+        int api;
+
+        n = network_recv_line(fd, line, sizeof line);
+        if (n <= 0 || network_split_fields(line, fields, 8) != 4
+            || strcmp(fields[0], "plugin") != 0
+            || fields[1][0] == '\0' || strlen(fields[1]) > MOD_ID_MAX
+            || fields[2][0] == '\0' || strlen(fields[2]) > MOD_VERSION_MAX
+            || !network_handshake_int(fields[3], &api) || api < 1) {
+            network_handshake_error(err, err_size, "invalid plugin list");
+            return 0;
+        }
+        snprintf(remote_plugins[i].id, sizeof remote_plugins[i].id, "%s",
+                 fields[1]);
+        snprintf(remote_plugins[i].version,
+                 sizeof remote_plugins[i].version, "%s", fields[2]);
+        remote_plugins[i].api = api;
+        if (i > 0 && network_plugin_compare(&remote_plugins[i - 1],
+                                            &remote_plugins[i]) >= 0) {
+            network_handshake_error(err, err_size,
+                                    "plugin list is not sorted");
+            return 0;
+        }
+    }
+    remote_plugin_count = (size_t)count;
+
+    n = network_recv_line(fd, line, sizeof line);
+    if (n <= 0 || network_split_fields(line, fields, 8) != 1
+        || strcmp(fields[0], "end") != 0) {
+        network_handshake_error(err, err_size, "handshake has no end marker");
+        return 0;
+    }
+
+    if (!network_local_lists(local_mods, &local_mod_count, local_plugins,
+                             &local_plugin_count, err, err_size))
+        return 0;
+    if (local_mod_count != remote_mod_count) {
+        network_handshake_error(err, err_size,
+                                "mod list has %d entries, expected %d",
+                                (int)remote_mod_count, (int)local_mod_count);
+        return 0;
+    }
+    for (i = 0; i < local_mod_count; i++) {
+        if (strcmp(local_mods[i].id, remote_mods[i].id) != 0
+            || strcmp(local_mods[i].version, remote_mods[i].version) != 0
+            || local_mods[i].api != remote_mods[i].api) {
+            network_handshake_error(err, err_size,
+                                    "mod %s@%s api %d does not match %s@%s api %d",
+                                    remote_mods[i].id,
+                                    remote_mods[i].version,
+                                    remote_mods[i].api,
+                                    local_mods[i].id,
+                                    local_mods[i].version,
+                                    local_mods[i].api);
+            return 0;
+        }
+    }
+    if (local_plugin_count != remote_plugin_count) {
+        network_handshake_error(err, err_size,
+                                "plugin list has %d entries, expected %d",
+                                (int)remote_plugin_count,
+                                (int)local_plugin_count);
+        return 0;
+    }
+    for (i = 0; i < local_plugin_count; i++) {
+        if (strcmp(local_plugins[i].id, remote_plugins[i].id) != 0
+            || strcmp(local_plugins[i].version,
+                      remote_plugins[i].version) != 0
+            || local_plugins[i].api != remote_plugins[i].api) {
+            network_handshake_error(err, err_size,
+                                    "plugin %s@%s api %d does not match %s@%s api %d",
+                                    remote_plugins[i].id,
+                                    remote_plugins[i].version,
+                                    remote_plugins[i].api,
+                                    local_plugins[i].id,
+                                    local_plugins[i].version,
+                                    local_plugins[i].api);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Read the client HELLO block, validate it against the host, and send the
+   host WELCOME block.  Both peers must match before any map bytes move. */
 int
 network_host_verify_hello(int client_fd)
 {
-    char buf[128];
-    int values[4] = { 0, 0, 0, 0 };
-    int n = network_recv_line(client_fd, buf, sizeof(buf));
+    char err[512];
 
-    if (n <= 0) {
-        fprintf(stderr, "network: rejected client protocol hello (no line)\n");
+    if (!network_recv_handshake(client_fd, 0, NULL, err, sizeof err)) {
+        fprintf(stderr, "network: rejected client handshake: %s\n", err);
+        fflush(stderr);
+        network_send_text(client_fd, "%d\n", MSG_DISCONN);
+        return -1;
+    }
+    if (network_send_handshake(client_fd, 1) < 0) {
+        fprintf(stderr, "network: failed to send the host welcome\n");
         fflush(stderr);
         return -1;
     }
-    if (parse_action_values(buf, values) == 2 && values[0] == MSG_HELLO) {
-        if (values[1] == NETWORK_VERSION) {
-            if (network_host_send_mods (client_fd) < 0) {
-                network_send_text (client_fd, "%d\n", MSG_DISCONN);
-                return -1;
-            }
-            fprintf(stderr, "network: client protocol version %d accepted\n",
-                    NETWORK_VERSION);
-            fflush(stderr);
-            return 0;
-        }
-        fprintf(stderr,
-                "network: rejected client protocol version %d (expected %d)\n",
-                values[1], NETWORK_VERSION);
-    } else {
-        fprintf(stderr, "network: rejected malformed client hello [%s]\n", buf);
-    }
+    fprintf(stderr, "network: client protocol version %d accepted\n",
+            NETWORK_VERSION);
     fflush(stderr);
-    network_send_text(client_fd, "%d\n", MSG_DISCONN);
-    return -1;
+    return 0;
 }
 
 int
@@ -1110,64 +1424,6 @@ network_host_send_info_all(void)
 /* ---------------------------------------------------------------------- *
  * Client implementation
  * ---------------------------------------------------------------------- */
-static int
-network_client_recv_mods(int fd)
-{
-    char line[NETWORK_BUF_SIZE];
-    char err[512];
-    FILE *tmp;
-    int lines = 0;
-
-    tmp = tmpfile ();
-    if (tmp == NULL) {
-        fprintf(stderr, "network: cannot create a temporary mod-list file\n");
-        fflush(stderr);
-        return -1;
-    }
-    for (;;) {
-        int n = network_recv_line (fd, line, sizeof line);
-
-        if (n <= 0) {
-            fprintf(stderr, "network: host mod list is truncated\n");
-            fflush(stderr);
-            fclose (tmp);
-            return -1;
-        }
-        if (fputs (line, tmp) == EOF || fputc ('\n', tmp) == EOF) {
-            fprintf(stderr, "network: cannot buffer the host mod list\n");
-            fflush(stderr);
-            fclose (tmp);
-            return -1;
-        }
-        lines++;
-        if (strcmp (line, "end") == 0)
-            break;
-        if (lines > MAX_TYPES + MOD_LIST_MAX + 8) {
-            fprintf(stderr, "network: host mod list is too large\n");
-            fflush(stderr);
-            fclose (tmp);
-            return -1;
-        }
-    }
-    rewind (tmp);
-    err[0] = '\0';
-    if (!save_mod_header_read (tmp, err, sizeof err)) {
-        fprintf(stderr, "network: rejected host mod list: %s\n", err);
-        fflush(stderr);
-        fclose (tmp);
-        return -1;
-    }
-    err[0] = '\0';
-    if (!save_mod_header_verify_exact (err, sizeof err)) {
-        fprintf(stderr, "network: rejected host mod list: %s\n", err);
-        fflush(stderr);
-        fclose (tmp);
-        return -1;
-    }
-    fclose (tmp);
-    return 0;
-}
-
 int
 network_client_connect(const char *host, int port)
 {
@@ -1206,8 +1462,8 @@ network_client_connect(const char *host, int port)
     fprintf(stderr, "network: connected, fd=%d\n", fd); fflush(stderr);
     network_client_reset_send_queue();
 
-    /* The host must see the version before it sends a welcome or map. */
-    if (network_send_text(fd, "%d %d\n", MSG_HELLO, NETWORK_VERSION) < 0) {
+    /* Send the full HELLO block before the host sends WELCOME or map bytes. */
+    if (network_send_handshake(fd, 0) < 0) {
         fprintf(stderr, "network: client hello send failed\n");
         fflush(stderr);
         CLOSE_SOCK(fd);
@@ -1215,13 +1471,25 @@ network_client_connect(const char *host, int port)
         return -1;
     }
 
-    /* The host sends the save-format mod block before WELCOME.  Refuse a
-       missing, incompatible, or differently ordered mod set before reading
-       any map bytes. */
-    if (network_client_recv_mods (fd) < 0) {
-        CLOSE_SOCK(fd);
-        network_wsaclean();
-        return -1;
+    /* Validate the host WELCOME block before new_city() or any map read. */
+    {
+        char err[512];
+        int world = 0;
+
+        if (!network_recv_handshake(fd, 1, &world, err, sizeof err)) {
+            fprintf(stderr, "network: rejected host handshake: %s\n", err);
+            fflush(stderr);
+            CLOSE_SOCK(fd);
+            network_wsaclean();
+            return -1;
+        }
+        if (world != WORLD_SIDE_LEN) {
+            fprintf(stderr, "network: recv_map: bad world size %d\n", world);
+            fflush(stderr);
+            CLOSE_SOCK(fd);
+            network_wsaclean();
+            return -1;
+        }
     }
 
     /* TCP_NODELAY: disable Nagle so actions arrive without delay */
@@ -1249,33 +1517,6 @@ network_client_recv_map(int fd)
     char buf[128];
     int n;
     int values[4] = { 0, 0, 0, 0 };
-
-    fprintf(stderr, "network: recv_map: welcome line...\n"); fflush(stderr);
-    nlog("recv_map(%d)\n", fd);
-    n = network_recv_line(fd, buf, sizeof(buf));
-    nlog("recv_map: line=[%s] len=%d\n", buf, n);
-    if (n <= 0) {
-        fprintf(stderr, "network: recv_map: welcome line failed (n=%d)\n", n); fflush(stderr);
-        return -1;
-    }
-
-    if (parse_action_values(buf, values) != 3 || values[0] != MSG_WELCOME) {
-        fprintf(stderr, "network: recv_map: bad welcome [%s]\n", buf);
-        fflush(stderr);
-        return -1;
-    }
-    if (values[1] != WORLD_SIDE_LEN) {
-        fprintf(stderr, "network: recv_map: bad world size %d\n", values[1]);
-        fflush(stderr);
-        return -1;
-    }
-    if (values[2] != NETWORK_VERSION) {
-        fprintf(stderr,
-                "network: recv_map: protocol version mismatch (%d != %d)\n",
-                values[2], NETWORK_VERSION);
-        fflush(stderr);
-        return -1;
-    }
 
     fprintf(stderr, "network: recv_map: receiving compressed world...\n"); fflush(stderr);
     nlog("recv_map: receiving compressed world...\n");

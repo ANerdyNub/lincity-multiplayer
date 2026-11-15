@@ -10,6 +10,8 @@ cost after bulldoze, or a broadcast for the rejected parkland fails.
 """
 import argparse
 import socket
+
+from net_handshake import recv_welcome, send_hello
 import struct
 import sys
 import time
@@ -52,10 +54,9 @@ def main():
     sock = socket.create_connection((args.host, args.port), timeout=args.timeout)
     sock.settimeout(args.timeout)
     try:
-        sock.sendall(b"72 3\n")
-        recv_mod_header(sock)
-        print("welcome: %s"
-              % recv_line(sock).decode("ascii", "replace").strip(),
+        send_hello(sock)
+        world, version, base, _, _ = recv_welcome(sock)
+        print("welcome: W %d %d %s" % (world, version, base),
               flush=True)
         usz, csz = struct.unpack("<II", recv_exact(sock, 8))
         if csz > 64 * 1024 * 1024:

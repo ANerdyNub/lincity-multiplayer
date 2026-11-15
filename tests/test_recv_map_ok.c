@@ -66,9 +66,7 @@ send_stream (int fd, const char *final_line)
     unsigned char *wire = NULL;
     unsigned char *comp = NULL;
     unsigned char hdr[8];
-    char welcome[64];
     uLongf csz;
-    int len;
     int result = -1;
     int x, y;
 
@@ -97,12 +95,9 @@ send_stream (int fd, const char *final_line)
 
     map_put_u32le (hdr, (uint32_t)MAP_WIRE_BYTES);
     map_put_u32le (hdr + 4, (uint32_t)csz);
-    len = snprintf (welcome, sizeof (welcome), "%d %d %d\n",
-                    MSG_WELCOME, WORLD_SIDE_LEN, NETWORK_VERSION);
-    if (len <= 0 || len >= (int)sizeof (welcome))
-        goto out;
-    if (write_all (fd, welcome, (size_t)len) < 0
-        || write_all (fd, hdr, sizeof (hdr)) < 0
+    /* The HELLO/WELCOME handshake now happens in network_client_connect();
+       recv_map starts directly at the compressed-map header. */
+    if (write_all (fd, hdr, sizeof (hdr)) < 0
         || write_all (fd, comp, (size_t)csz) < 0
         || write_all (fd, final_line, strlen (final_line)) < 0)
         goto out;

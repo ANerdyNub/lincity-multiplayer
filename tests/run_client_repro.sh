@@ -19,6 +19,8 @@ POST_WAIT=1
 PARTIAL=0
 VERSION_MISMATCH=0
 MOD_MISMATCH=0
+BASE_MISMATCH=0
+PLUGIN_MISMATCH=0
 REQUIRE_LOG=none
 EXPECT_REJECTS=
 
@@ -31,7 +33,9 @@ while [ $# -gt 0 ]; do
     --expect) EXPECT=$2; shift 2 ;;
     --bad-map) EXPECT_MAP=fail; shift ;;
     --version-mismatch) EXPECT_MAP=version; VERSION_MISMATCH=1; shift ;;
-    --mod-mismatch) EXPECT_MAP=modfail; MOD_MISMATCH=1; shift ;;
+    --mod-mismatch) EXPECT_MAP=handshakefail; MOD_MISMATCH=1; shift ;;
+    --base-mismatch) EXPECT_MAP=handshakefail; BASE_MISMATCH=1; shift ;;
+    --plugin-mismatch) EXPECT_MAP=handshakefail; PLUGIN_MISMATCH=1; shift ;;
     --partial) PARTIAL=1; HOST_WAIT=8; POST_WAIT=7; shift ;;
     --wait-after) POST_WAIT=$2; shift 2 ;;
     --require-log) REQUIRE_LOG=$2; shift 2 ;;
@@ -41,7 +45,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$EXPECT" in alive|crash) ;; *) echo "--expect must be alive or crash" >&2; exit 2 ;; esac
-case "$EXPECT_MAP" in ok|fail|version|modfail) ;; *) echo "bad map expectation" >&2; exit 2 ;; esac
+case "$EXPECT_MAP" in ok|fail|version|handshakefail) ;; *) echo "bad map expectation" >&2; exit 2 ;; esac
 case "$REQUIRE_LOG" in none|reject) ;; *) echo "--require-log must be none or reject" >&2; exit 2 ;; esac
 case "${EXPECT_REJECTS:-0}" in ''|*[!0-9]*) echo "--expect-rejects must be a non-negative integer" >&2; exit 2 ;; esac
 [ -x "$BIN" ] || { echo "binary not executable: $BIN" >&2; exit 2; }
@@ -74,6 +78,8 @@ set -- "$ROOT/tests/fake_host.py" --wait "$HOST_WAIT"
 [ "$EXPECT_MAP" = fail ] && set -- "$@" --bad-compressed-size
 [ "$VERSION_MISMATCH" = 1 ] && set -- "$@" --welcome-version 1 --no-map
 [ "$MOD_MISMATCH" = 1 ] && set -- "$@" --mod-mismatch
+[ "$BASE_MISMATCH" = 1 ] && set -- "$@" --welcome-base-version 0.0.0
+[ "$PLUGIN_MISMATCH" = 1 ] && set -- "$@" --plugin-mismatch
 [ "$PARTIAL" = 1 ] && set -- "$@" --partial
 while IFS= read -r p; do
     set -- "$@" --payload "$p"
@@ -156,25 +162,25 @@ sleep 0.5
 send_key Return  # default port 5123
 sleep 2.0
 
-if [ "$EXPECT_MAP" = modfail ]; then
+if [ "$EXPECT_MAP" = handshakefail ]; then
     sleep 1
     if grep -qF 'network: recv_map: done OK' "$TMP/client.log"; then
-        echo "FAIL: client accepted a mismatched host mod list" >&2
+        echo "FAIL: client accepted a mismatched host handshake" >&2
         cat "$TMP/client.log" >&2 || true
         exit 1
     fi
-    if ! grep -qF 'network: rejected host mod list' "$TMP/client.log"; then
-        echo "FAIL: client did not reject the host mod list" >&2
+    if ! grep -qF 'network: rejected host handshake' "$TMP/client.log"; then
+        echo "FAIL: client did not reject the host handshake" >&2
         cat "$TMP/client.log" >&2 || true
         cat "$TMP/host.log" >&2 || true
         exit 1
     fi
     if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
-        echo "FAIL: client died after rejecting the host mod list" >&2
+        echo "FAIL: client died after rejecting the host handshake" >&2
         cat "$TMP/client.log" >&2 || true
         exit 1
     fi
-    echo "PASS: client rejected a mismatched host mod list"
+    echo "PASS: client rejected a mismatched host handshake"
     exit 0
 fi
 
@@ -218,7 +224,7 @@ if [ "$EXPECT_MAP" = version ]; then
         cat "$TMP/client.log" >&2 || true
         exit 1
     fi
-    if ! grep -qF 'network: recv_map: protocol version mismatch' "$TMP/client.log"; then
+    if ! grep -qF 'network: rejected host handshake' "$TMP/client.log"; then
         echo "FAIL: client did not reject the welcome version" >&2
         cat "$TMP/client.log" >&2 || true
         cat "$TMP/host.log" >&2 || true
