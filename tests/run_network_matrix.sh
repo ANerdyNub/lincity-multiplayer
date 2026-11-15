@@ -35,8 +35,9 @@ DISPLAY=$DISPLAY xdpyinfo >/dev/null 2>&1 || { echo "no X display at $DISPLAY" >
 mkdir -p "$LOG_DIR"
 LOG_DIR=$(CDPATH= cd -- "$LOG_DIR" && pwd)
 REPORT_DIR=$LOG_DIR/sanitizer
-rm -rf "$REPORT_DIR"
-mkdir -p "$REPORT_DIR"
+EMPTY_MOD_DIR=$LOG_DIR/empty-mods
+rm -rf "$REPORT_DIR" "$EMPTY_MOD_DIR"
+mkdir -p "$REPORT_DIR" "$EMPTY_MOD_DIR"
 
 export DISPLAY
 export ASAN_OPTIONS="abort_on_error=1:detect_leaks=0:halt_on_error=1:log_path=$REPORT_DIR/asan"
@@ -74,7 +75,8 @@ run_case() {
 run_host_case() {
     local name=$1
     shift
-    local args=(--binary "$BIN" --display "$DISPLAY" --expect alive --seed "$SEED")
+    local args=(--binary "$BIN" --display "$DISPLAY" --expect alive
+        --mod-dir "$EMPTY_MOD_DIR" --seed "$SEED")
     while [ $# -gt 0 ]; do
         args+=("$1" "$2")
         shift 2
@@ -86,7 +88,8 @@ run_client() {
     local name=$1
     shift
     run_case "$name" "$ROOT/tests/run_client_repro.sh" \
-        --binary "$BIN" --display "$DISPLAY" --expect alive "$@"
+        --binary "$BIN" --display "$DISPLAY" --expect alive \
+        --mod-dir "$EMPTY_MOD_DIR" "$@"
 }
 
 echo "== ASan+UBSan host edge matrix =="
@@ -197,22 +200,28 @@ run_host_case valid-build-bulldoze \
 
 echo "== ASan+UBSan host special cases =="
 run_case slowline "$ROOT/tests/run_network_repro.sh" \
-    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --slowline --expect alive
+    --binary "$BIN" --display "$DISPLAY" --mod-dir "$EMPTY_MOD_DIR" \
+    --seed "$SEED" --slowline --expect alive
 run_case never-read "$ROOT/tests/run_network_repro.sh" \
-    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --never-read \
+    --binary "$BIN" --display "$DISPLAY" --mod-dir "$EMPTY_MOD_DIR" \
+    --seed "$SEED" --never-read \
     --never-read-duration 30 --expect alive --require-log reject \
     --require-line 'network: rejected malformed action line'
 run_case mod-mismatch "$ROOT/tests/run_network_repro.sh" \
-    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --expect alive \
+    --binary "$BIN" --display "$DISPLAY" --mod-dir "$EMPTY_MOD_DIR" \
+    --seed "$SEED" --expect alive \
     --hello-extra-mod --expect-hello-rejected
 run_case base-version-mismatch "$ROOT/tests/run_network_repro.sh" \
-    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --expect alive \
+    --binary "$BIN" --display "$DISPLAY" --mod-dir "$EMPTY_MOD_DIR" \
+    --seed "$SEED" --expect alive \
     --hello-base-version 0.0.0 --expect-hello-rejected
 run_case plugin-mismatch "$ROOT/tests/run_network_repro.sh" \
-    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --expect alive \
+    --binary "$BIN" --display "$DISPLAY" --mod-dir "$EMPTY_MOD_DIR" \
+    --seed "$SEED" --expect alive \
     --hello-plugin --expect-hello-rejected
 run_case overlong "$ROOT/tests/run_network_repro.sh" \
-    --binary "$BIN" --display "$DISPLAY" --seed "$SEED" --overlong \
+    --binary "$BIN" --display "$DISPLAY" --mod-dir "$EMPTY_MOD_DIR" \
+    --seed "$SEED" --overlong \
     --expect alive --require-log overlong
 run_host_case origin74-recheck \
     --origin 74 --require-log accept \

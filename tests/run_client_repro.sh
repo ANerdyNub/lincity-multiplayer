@@ -4,7 +4,7 @@
 #
 # Usage:
 #   DISPLAY=:99 tests/run_client_repro.sh \
-#       [--binary ./xlincity] \
+#       [--binary ./xlincity] [--mod-dir DIR] \
 #       [--payload '66 100000 0 0']... [--expect alive|crash] \
 #       [--bad-map] [--partial] [--version-mismatch] [--wait-after N]
 set -eu
@@ -14,6 +14,7 @@ BIN=${LINCITY_BIN:-$ROOT/xlincity}
 DISPLAY=${DISPLAY:-:99}
 EXPECT=alive
 EXPECT_MAP=ok
+MOD_DIR=
 HOST_WAIT=4
 POST_WAIT=1
 PARTIAL=0
@@ -28,6 +29,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
     --binary) BIN=$2; shift 2 ;;
     --display) DISPLAY=$2; shift 2 ;;
+    --mod-dir) MOD_DIR=$2; shift 2 ;;
     --payload) PAYLOADS="${PAYLOADS:-}${PAYLOADS:+
 }$2"; shift 2 ;;
     --expect) EXPECT=$2; shift 2 ;;
@@ -93,7 +95,9 @@ if ! kill -0 "$HOST_PID" 2>/dev/null; then
     exit 1
 fi
 
-HOME=$TMP LINCITY_HOME=$ROOT DISPLAY=$DISPLAY "$BIN" >"$TMP/client.log" 2>&1 &
+set --
+[ -n "${MOD_DIR:-}" ] && set -- --mod-dir "$MOD_DIR"
+HOME=$TMP LINCITY_HOME=$ROOT DISPLAY=$DISPLAY "$BIN" "$@" >"$TMP/client.log" 2>&1 &
 CLIENT_PID=$!
 
 WIN=
